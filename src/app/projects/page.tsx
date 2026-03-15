@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { startTransition, useEffect, useState } from "react";
+import {
+  getOutputLanguageLabel,
+  getTerminologyModeLabel,
+  outputLanguageOptions,
+  terminologyModeOptions,
+  type OutputLanguageValue,
+  type TerminologyModeValue,
+} from "@/lib/project-language";
 
 type ProjectCard = {
   id: string;
@@ -12,6 +20,9 @@ type ProjectCard = {
   status: string;
   currentChapterNo: number;
   targetWords: number | null;
+  sourceLanguage: OutputLanguageValue;
+  defaultOutputLanguage: OutputLanguageValue;
+  terminologyMode: TerminologyModeValue;
   updatedAt: string;
 };
 
@@ -21,6 +32,8 @@ type ProjectForm = {
   premise: string;
   tone: string;
   targetWords: string;
+  defaultOutputLanguage: OutputLanguageValue;
+  terminologyMode: TerminologyModeValue;
 };
 
 const emptyForm: ProjectForm = {
@@ -29,6 +42,8 @@ const emptyForm: ProjectForm = {
   premise: "",
   tone: "",
   targetWords: "",
+  defaultOutputLanguage: "ZH_CN",
+  terminologyMode: "KEEP_CN_TERMS",
 };
 
 export default function ProjectsPage() {
@@ -88,6 +103,8 @@ export default function ProjectsPage() {
           premise: form.premise,
           tone: form.tone || null,
           targetWords: form.targetWords ? Number(form.targetWords) : null,
+          defaultOutputLanguage: form.defaultOutputLanguage,
+          terminologyMode: form.terminologyMode,
         }),
       });
 
@@ -169,6 +186,9 @@ export default function ProjectsPage() {
                   <div className="mt-4 flex flex-wrap gap-3 text-xs text-zinc-600">
                     <span>当前章节：{project.currentChapterNo}</span>
                     <span>目标字数：{project.targetWords ?? "未设定"}</span>
+                    <span>策划语言：中文</span>
+                    <span>默认输出：{getOutputLanguageLabel(project.defaultOutputLanguage)}</span>
+                    <span>术语策略：{getTerminologyModeLabel(project.terminologyMode)}</span>
                     <span>最近更新：{new Date(project.updatedAt).toLocaleString("zh-CN")}</span>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-3">
@@ -243,6 +263,40 @@ export default function ProjectsPage() {
                 className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm outline-none transition focus:border-amber-300"
                 placeholder="500000"
               />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm text-zinc-300">默认输出语言</span>
+              <select
+                value={form.defaultOutputLanguage}
+                onChange={(event) =>
+                  updateField("defaultOutputLanguage", event.target.value as OutputLanguageValue)
+                }
+                className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm outline-none transition focus:border-amber-300"
+              >
+                {outputLanguageOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} - {option.description}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm text-zinc-300">专有名词策略</span>
+              <select
+                value={form.terminologyMode}
+                onChange={(event) =>
+                  updateField("terminologyMode", event.target.value as TerminologyModeValue)
+                }
+                className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm outline-none transition focus:border-amber-300"
+              >
+                {terminologyModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} - {option.description}
+                  </option>
+                ))}
+              </select>
             </label>
 
             {error ? <p className="text-sm text-rose-300">{error}</p> : null}

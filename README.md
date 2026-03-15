@@ -36,6 +36,7 @@ Prisma schema 已包含这些核心表：
 - 角色设定
 - 世界规则
 - 伏笔追踪
+- 项目级中文策划 / 中文或马来文输出设置
 
 ## 本地启动
 
@@ -120,3 +121,18 @@ npm run prisma:studio
 1. `projects` 作品列表页
 2. `story-bible` 故事设定生成页
 3. `chapters` 目录与正文工作台
+
+## 多语言策略
+
+当前项目已经支持这一套基础规则：
+
+- 设定、大纲、细纲统一以中文母稿策划
+- 项目级可设置正文默认输出为 `中文` 或 `马来文`
+- 项目级可设置专有名词策略：
+  - 保留中文风格
+  - 混合表达
+  - 本地化表达
+
+相关数据库变更已经写入：
+
+- [prisma/migrations/0002_project_languages/migration.sql](/Users/rms/Desktop/Ai%20Project/Ai%20Novel/prisma/migrations/0002_project_languages/migration.sql)

@@ -101,6 +101,15 @@ export async function POST(request: Request) {
         `题材：${project.genre}`,
         `核心脑洞：${project.premise}`,
         `风格偏好：${project.tone ?? "未提供"}`,
+        `策划语言：中文母稿`,
+        `未来正文默认输出语言：${project.defaultOutputLanguage === "MS_MY" ? "马来文" : "中文"}`,
+        `专有名词策略：${
+          project.terminologyMode === "LOCALIZED_TERMS"
+            ? "正文生成时尽量本地化表达"
+            : project.terminologyMode === "HYBRID_TERMS"
+              ? "正文生成时保留中文术语并适度解释"
+              : "正文生成时保留中文风格术语"
+        }`,
         "请给我一版适合中文爽文平台的故事设定初稿。",
       ].join("\n"),
       max_output_tokens: 2200,

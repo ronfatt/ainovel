@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { startTransition, useEffect, useState } from "react";
+import {
+  getOutputLanguageLabel,
+  getTerminologyModeLabel,
+  type OutputLanguageValue,
+  type TerminologyModeValue,
+} from "@/lib/project-language";
 
 type StoryBibleResponse = {
   id?: string;
@@ -27,6 +33,9 @@ type ProjectPayload = {
   genre: string;
   premise: string;
   tone: string | null;
+  sourceLanguage: OutputLanguageValue;
+  defaultOutputLanguage: OutputLanguageValue;
+  terminologyMode: TerminologyModeValue;
 };
 
 type StoryBibleForm = {
@@ -376,6 +385,22 @@ export default function StoryBiblePage({
                 <p className="mt-2 text-sm text-zinc-700">{project.premise}</p>
               </div>
               <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-amber-700">策划语言</p>
+                <p className="mt-2 text-sm text-zinc-700">中文母稿</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-amber-700">默认输出</p>
+                <p className="mt-2 text-sm text-zinc-700">
+                  {getOutputLanguageLabel(project.defaultOutputLanguage)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-amber-700">术语策略</p>
+                <p className="mt-2 text-sm text-zinc-700">
+                  {getTerminologyModeLabel(project.terminologyMode)}
+                </p>
+              </div>
+              <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-amber-700">风格</p>
                 <p className="mt-2 text-sm text-zinc-700">{project.tone ?? "未设置"}</p>
               </div>
@@ -422,6 +447,12 @@ export default function StoryBiblePage({
                 >
                   {saving ? "保存中..." : "保存故事设定"}
                 </button>
+                <Link
+                  href={projectId ? `/projects/${projectId}/outline` : "/projects"}
+                  className="rounded-full border border-zinc-200 px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                >
+                  进入大纲页
+                </Link>
                 <button
                   type="button"
                   onClick={() => setForm(emptyForm)}

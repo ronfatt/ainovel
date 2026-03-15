@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { OutputLanguage, TerminologyMode } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type CreateProjectBody = {
@@ -7,6 +8,8 @@ type CreateProjectBody = {
   premise?: string;
   tone?: string | null;
   targetWords?: number | null;
+  defaultOutputLanguage?: OutputLanguage;
+  terminologyMode?: TerminologyMode;
 };
 
 export async function GET() {
@@ -24,6 +27,9 @@ export async function GET() {
         status: true,
         currentChapterNo: true,
         targetWords: true,
+        sourceLanguage: true,
+        defaultOutputLanguage: true,
+        terminologyMode: true,
         updatedAt: true,
       },
     });
@@ -59,6 +65,15 @@ export async function POST(request: Request) {
     typeof body.targetWords === "number" && Number.isFinite(body.targetWords)
       ? Math.max(0, Math.floor(body.targetWords))
       : null;
+  const defaultOutputLanguage =
+    body.defaultOutputLanguage === OutputLanguage.MS_MY
+      ? OutputLanguage.MS_MY
+      : OutputLanguage.ZH_CN;
+  const terminologyMode =
+    body.terminologyMode &&
+    Object.values(TerminologyMode).includes(body.terminologyMode)
+      ? body.terminologyMode
+      : TerminologyMode.KEEP_CN_TERMS;
 
   if (!title || !genre || !premise) {
     return NextResponse.json(
@@ -75,6 +90,9 @@ export async function POST(request: Request) {
         premise,
         tone,
         targetWords,
+        sourceLanguage: OutputLanguage.ZH_CN,
+        defaultOutputLanguage,
+        terminologyMode,
       },
       select: {
         id: true,
@@ -85,6 +103,9 @@ export async function POST(request: Request) {
         status: true,
         currentChapterNo: true,
         targetWords: true,
+        sourceLanguage: true,
+        defaultOutputLanguage: true,
+        terminologyMode: true,
         updatedAt: true,
       },
     });

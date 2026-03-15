@@ -14,6 +14,17 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum OutputLanguage {
+  ZH_CN
+  MS_MY
+}
+
+enum TerminologyMode {
+  KEEP_CN_TERMS
+  LOCALIZED_TERMS
+  HYBRID_TERMS
+}
+
 enum OutlineType {
   FULL_BOOK
 }
@@ -52,23 +63,26 @@ enum ForeshadowStatus {
 }
 
 model Project {
-  id               String        @id @default(cuid())
-  title            String
-  genre            String
-  premise          String
-  tone             String?
-  targetWords      Int?
-  status           ProjectStatus @default(PLANNING)
-  currentChapterNo Int           @default(0)
-  notes            String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  storyBible       StoryBible?
-  outline          Outline?
-  chapters         Chapter[]
-  characters       Character[]
-  worldRules       WorldRule[]
-  foreshadows      Foreshadow[]
+  id                    String          @id @default(cuid())
+  title                 String
+  genre                 String
+  premise               String
+  tone                  String?
+  targetWords           Int?
+  sourceLanguage        OutputLanguage  @default(ZH_CN)
+  defaultOutputLanguage OutputLanguage  @default(ZH_CN)
+  terminologyMode       TerminologyMode @default(KEEP_CN_TERMS)
+  status                ProjectStatus   @default(PLANNING)
+  currentChapterNo      Int             @default(0)
+  notes                 String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  storyBible            StoryBible?
+  outline               Outline?
+  chapters              Chapter[]
+  characters            Character[]
+  worldRules            WorldRule[]
+  foreshadows           Foreshadow[]
 
   @@index([status, updatedAt])
 }
@@ -149,17 +163,20 @@ model ChapterBrief {
 }
 
 model ChapterDraft {
-  id             String   @id @default(cuid())
-  chapterId      String
-  draftNo        Int
-  content        String
-  wordCount      Int
-  modelName      String?
-  promptSnapshot Json?
-  isCurrent      Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  id                  String         @id @default(cuid())
+  chapterId           String
+  draftNo             Int
+  language            OutputLanguage @default(ZH_CN)
+  generationMode      String?        @default("original")
+  translationOfDraftId String?
+  content             String
+  wordCount           Int
+  modelName           String?
+  promptSnapshot      Json?
+  isCurrent           Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  chapter             Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
   @@unique([chapterId, draftNo])
   @@index([chapterId, isCurrent])

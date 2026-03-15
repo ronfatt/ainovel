@@ -40,6 +40,9 @@ export async function GET(_: Request, context: RouteContext) {
         genre: true,
         premise: true,
         tone: true,
+        sourceLanguage: true,
+        defaultOutputLanguage: true,
+        terminologyMode: true,
         storyBible: true,
       },
     });
