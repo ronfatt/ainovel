@@ -84,6 +84,7 @@ export default function ChapterWriterPage({
   const [generating, setGenerating] = useState(false);
   const [savingBrief, setSavingBrief] = useState(false);
   const [generatingBrief, setGeneratingBrief] = useState(false);
+  const [generatingNextChapter, setGeneratingNextChapter] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -324,6 +325,42 @@ export default function ChapterWriterPage({
     }
   }
 
+  async function handleGenerateNextChapter() {
+    if (!chapterId || !projectId) {
+      setError("章节 ID 缺失。");
+      return;
+    }
+
+    setGeneratingNextChapter(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/ai/chapters/${chapterId}/next`, {
+        method: "POST",
+      });
+      const data = (await response.json()) as {
+        message?: string;
+        nextChapter?: { id: string; chapterNo: number; title: string };
+        model?: string;
+      };
+
+      if (!response.ok || !data.nextChapter) {
+        throw new Error(data.message ?? "AI 生成下一章失败。");
+      }
+
+      setSuccess(
+        `AI 已生成第 ${data.nextChapter.chapterNo} 章《${data.nextChapter.title}》，当前模型：${data.model ?? "未返回"}`,
+      );
+    } catch (generationError) {
+      setError(
+        generationError instanceof Error ? generationError.message : "AI 生成下一章失败。",
+      );
+    } finally {
+      setGeneratingNextChapter(false);
+    }
+  }
+
   const selectedBrief =
     chapter?.briefs.find((brief) => brief.id === selectedBriefId) ?? chapter?.briefs[0] ?? null;
   const selectedDraft =
@@ -491,6 +528,14 @@ export default function ChapterWriterPage({
                     className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? "保存中..." : "保存草稿"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateNextChapter}
+                    disabled={generatingNextChapter}
+                    className="rounded-full border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {generatingNextChapter ? "生成下一章中..." : "AI 生成下一章目录"}
                   </button>
                 </div>
 
