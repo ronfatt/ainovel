@@ -94,6 +94,9 @@ export async function POST(request: Request) {
     const client = getOpenAIClient();
     const response = await client.responses.create({
       model: getOpenAIModel(),
+      reasoning: {
+        effort: "low",
+      },
       instructions:
         "你是一个擅长中文爽文策划的小说编辑。请根据用户提供的作品信息，生成一份适合网文创作的故事设定初稿。输出必须是简体中文，内容要强调爽点、升级路径、冲突和章节连载感。不要解释，不要输出额外文字，只输出符合 schema 的 JSON。",
       input: [
@@ -112,7 +115,7 @@ export async function POST(request: Request) {
         }`,
         "请给我一版适合中文爽文平台的故事设定初稿。",
       ].join("\n"),
-      max_output_tokens: 2200,
+      max_output_tokens: 4200,
       text: {
         format: {
           type: "json_schema",
@@ -123,11 +126,35 @@ export async function POST(request: Request) {
       },
     });
 
+    if (response.incomplete_details?.reason === "max_output_tokens") {
+      return NextResponse.json(
+        {
+          message:
+            "AI 输出在生成中被截断了。请重新点击生成，或稍后我可以继续帮你把这一步做得更稳定。",
+        },
+        { status: 502 },
+      );
+    }
+
     if (!response.output_text) {
       throw new Error("Model returned an empty response.");
     }
 
-    const draft = JSON.parse(response.output_text) as StoryBibleDraft;
+    let draft: StoryBibleDraft;
+
+    try {
+      draft = JSON.parse(response.output_text) as StoryBibleDraft;
+    } catch (parseError) {
+      console.error("Failed to parse story bible JSON", parseError, response.output_text);
+
+      return NextResponse.json(
+        {
+          message:
+            "AI 已返回内容，但结果在解析时失败了。通常是输出被截断或格式不完整，请重试一次。",
+        },
+        { status: 502 },
+      );
+    }
 
     const storyBible = await prisma.storyBible.upsert({
       where: { projectId },
@@ -175,7 +202,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message:
-          "AI 生成故事设定失败。请确认 OPENAI_API_KEY 已经配置，并检查数据库连接是否正常。",
+          "AI 生成故事设定失败。请确认 OpenAI 和数据库配置正常，或稍后重试。",
       },
       { status: 500 },
     );
