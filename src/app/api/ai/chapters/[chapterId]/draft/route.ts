@@ -76,6 +76,29 @@ export async function POST(request: Request, context: RouteContext) {
       outputLanguage === OutputLanguage.MS_MY ? "localized_adaptation" : "original";
     const storyBible = chapter.project.storyBible;
     const currentBrief = chapter.briefs[0];
+    const previousChapter =
+      chapter.chapterNo > 1
+        ? await prisma.chapter.findFirst({
+            where: {
+              projectId: chapter.projectId,
+              chapterNo: chapter.chapterNo - 1,
+            },
+            include: {
+              briefs: {
+                where: { isCurrent: true },
+                orderBy: [{ version: "desc" }],
+                take: 1,
+              },
+              drafts: {
+                where: { isCurrent: true },
+                orderBy: [{ draftNo: "desc" }],
+                take: 1,
+              },
+            },
+          })
+        : null;
+    const previousBrief = previousChapter?.briefs[0];
+    const previousDraft = previousChapter?.drafts[0];
     const structure = chapter.project.outline.structureData as {
       openingHook?: string;
       volumePlan?: string;
@@ -112,6 +135,12 @@ export async function POST(request: Request, context: RouteContext) {
         `一句话卖点：${storyBible.logline}`,
         `故事简介：${storyBible.synopsis}`,
         `核心冲突：${storyBible.coreConflict}`,
+        previousChapter ? `上一章：第 ${previousChapter.chapterNo} 章《${previousChapter.title}》` : "",
+        `上一章摘要：${previousChapter?.summary ?? ""}`,
+        `上一章爽点：${previousChapter?.corePayoff ?? ""}`,
+        `上一章结尾钩子：${previousChapter?.endingHook ?? ""}`,
+        `上一章细纲结尾：${(previousBrief?.briefData as { endingHook?: string } | null)?.endingHook ?? ""}`,
+        `上一章正文结尾状态：${previousDraft?.content.slice(-420) ?? ""}`,
         `开篇钩子：${structure.openingHook ?? ""}`,
         `分卷规划：${structure.volumePlan ?? ""}`,
         `当前章节：第 ${chapter.chapterNo} 章`,

@@ -279,6 +279,12 @@ export default function ChaptersPage({
             </div>
             <div className="flex gap-3">
               <Link
+                href={projectId ? `/projects/${projectId}/characters` : "/projects"}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+              >
+                角色形象库
+              </Link>
+              <Link
                 href={projectId ? `/projects/${projectId}/outline` : "/projects"}
                 className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
               >

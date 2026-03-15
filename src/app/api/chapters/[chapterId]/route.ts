@@ -26,6 +26,16 @@ export async function GET(_: Request, context: RouteContext) {
             terminologyMode: true,
             storyBible: true,
             outline: true,
+            characters: {
+              orderBy: [{ isVisualAnchor: "desc" }, { updatedAt: "desc" }],
+              select: {
+                id: true,
+                name: true,
+                role: true,
+                isVisualAnchor: true,
+                referenceImageData: true,
+              },
+            },
           },
         },
         drafts: {
@@ -36,6 +46,10 @@ export async function GET(_: Request, context: RouteContext) {
           orderBy: [{ version: "desc" }],
           take: 6,
         },
+        covers: {
+          orderBy: [{ createdAt: "desc" }],
+          take: 6,
+        },
       },
     });
 
@@ -43,7 +57,29 @@ export async function GET(_: Request, context: RouteContext) {
       return NextResponse.json({ message: "找不到这个章节。" }, { status: 404 });
     }
 
-    return NextResponse.json({ chapter });
+    const previousChapter =
+      chapter.chapterNo > 1
+        ? await prisma.chapter.findFirst({
+            where: {
+              projectId: chapter.projectId,
+              chapterNo: chapter.chapterNo - 1,
+            },
+            include: {
+              briefs: {
+                where: { isCurrent: true },
+                orderBy: [{ version: "desc" }],
+                take: 1,
+              },
+              drafts: {
+                where: { isCurrent: true },
+                orderBy: [{ draftNo: "desc" }],
+                take: 1,
+              },
+            },
+          })
+        : null;
+
+    return NextResponse.json({ chapter, previousChapter });
   } catch (error) {
     console.error("Failed to load chapter", error);
 

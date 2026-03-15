@@ -64,6 +64,29 @@ export async function POST(_: Request, context: RouteContext) {
     }
 
     const storyBible = chapter.project.storyBible;
+    const previousChapter =
+      chapter.chapterNo > 1
+        ? await prisma.chapter.findFirst({
+            where: {
+              projectId: chapter.projectId,
+              chapterNo: chapter.chapterNo - 1,
+            },
+            include: {
+              briefs: {
+                where: { isCurrent: true },
+                orderBy: [{ version: "desc" }],
+                take: 1,
+              },
+              drafts: {
+                where: { isCurrent: true },
+                orderBy: [{ draftNo: "desc" }],
+                take: 1,
+              },
+            },
+          })
+        : null;
+    const previousBrief = previousChapter?.briefs[0];
+    const previousDraft = previousChapter?.drafts[0];
     const client = getOpenAIClient();
     const response = await client.responses.create({
       model: getOpenAIModel(),
@@ -76,6 +99,12 @@ export async function POST(_: Request, context: RouteContext) {
         `一句话卖点：${storyBible.logline}`,
         `故事简介：${storyBible.synopsis}`,
         `核心冲突：${storyBible.coreConflict}`,
+        previousChapter ? `上一章：第 ${previousChapter.chapterNo} 章《${previousChapter.title}》` : "",
+        `上一章摘要：${previousChapter?.summary ?? ""}`,
+        `上一章爽点：${previousChapter?.corePayoff ?? ""}`,
+        `上一章结尾钩子：${previousChapter?.endingHook ?? ""}`,
+        `上一章细纲结尾：${(previousBrief?.briefData as { endingHook?: string } | null)?.endingHook ?? ""}`,
+        `上一章正文结尾状态：${previousDraft?.content.slice(-280) ?? ""}`,
         `当前章节：第 ${chapter.chapterNo} 章`,
         `章节标题：${chapter.title}`,
         `章节摘要：${chapter.summary}`,

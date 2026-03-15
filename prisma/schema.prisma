@@ -140,6 +140,7 @@ model Chapter {
   outline          Outline?       @relation(fields: [outlineId], references: [id], onDelete: SetNull)
   briefs           ChapterBrief[]
   drafts           ChapterDraft[]
+  covers           ChapterCover[]
   setupForeshadow  Foreshadow[]   @relation("ForeshadowSetup")
   payoffForeshadow Foreshadow[]   @relation("ForeshadowPayoff")
 
@@ -183,20 +184,48 @@ model ChapterDraft {
 }
 
 model Character {
-  id            String        @id @default(cuid())
-  projectId     String
-  name          String
-  role          CharacterRole @default(SUPPORTING)
-  profile       Json
-  personality   Json?
-  goals         Json?
-  currentStatus Json?
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                 String         @id @default(cuid())
+  projectId          String
+  name               String
+  role               CharacterRole  @default(SUPPORTING)
+  profile            Json
+  personality        Json?
+  goals              Json?
+  currentStatus      Json?
+  notes              String?
+  appearancePromptZh String?
+  appearancePromptEn String?
+  negativePrompt     String?
+  referenceImageData String?
+  identityLockNotes  String?
+  isVisualAnchor     Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  project            Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapterCovers      ChapterCover[]
 
   @@index([projectId, role])
+}
+
+model ChapterCover {
+  id            String     @id @default(cuid())
+  chapterId     String
+  characterId   String?
+  scenePrompt   String
+  shotPrompt    String?
+  moodPrompt    String?
+  finalPrompt   String
+  negativePrompt String?
+  imageData     String
+  mimeType      String     @default("image/png")
+  modelName     String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  chapter       Chapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  character     Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@index([chapterId, createdAt])
+  @@index([characterId])
 }
 
 model WorldRule {

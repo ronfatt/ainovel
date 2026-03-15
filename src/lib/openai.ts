@@ -19,3 +19,7 @@ export function getOpenAIClient() {
 export function getOpenAIModel() {
   return process.env.OPENAI_MODEL || "gpt-5-mini";
 }
+
+export function getOpenAIImageModel() {
+  return process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+}

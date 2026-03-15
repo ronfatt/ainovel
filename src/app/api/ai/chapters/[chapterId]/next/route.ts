@@ -90,6 +90,16 @@ export async function POST(_: Request, context: RouteContext) {
     const recentChapters = allChapters
       .filter((item) => item.chapterNo <= chapter.chapterNo)
       .slice(-4);
+    const currentDraft = await prisma.chapterDraft.findFirst({
+      where: {
+        chapterId: chapter.id,
+        isCurrent: true,
+      },
+      orderBy: [{ draftNo: "desc" }],
+      select: {
+        content: true,
+      },
+    });
     const storyBible = chapter.project.storyBible;
     const structure = chapter.project.outline.structureData as {
       openingHook?: string;
@@ -118,6 +128,7 @@ export async function POST(_: Request, context: RouteContext) {
         `当前章节摘要：${chapter.summary}`,
         `当前章节爽点：${chapter.corePayoff ?? ""}`,
         `当前章节结尾钩子：${chapter.endingHook ?? ""}`,
+        `当前章节正文结尾状态：${currentDraft?.content.slice(-360) ?? ""}`,
         `最近章节参考：${JSON.stringify(recentChapters)}`,
         `请生成第 ${chapter.chapterNo + 1} 章的目录项。`,
       ].join("\n"),

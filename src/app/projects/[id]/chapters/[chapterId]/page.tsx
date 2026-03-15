@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { startTransition, useEffect, useState } from "react";
 import {
@@ -32,6 +33,25 @@ type BriefItem = {
   };
 };
 
+type CharacterVisualItem = {
+  id: string;
+  name: string;
+  role: string;
+  isVisualAnchor: boolean;
+  referenceImageData: string | null;
+};
+
+type ChapterCoverItem = {
+  id: string;
+  characterId: string | null;
+  scenePrompt: string;
+  shotPrompt: string | null;
+  moodPrompt: string | null;
+  imageData: string;
+  modelName: string | null;
+  createdAt: string;
+};
+
 type ChapterPayload = {
   id: string;
   chapterNo: number;
@@ -45,9 +65,28 @@ type ChapterPayload = {
     title: string;
     defaultOutputLanguage: OutputLanguageValue;
     terminologyMode: string;
+    characters: CharacterVisualItem[];
   };
   drafts: DraftItem[];
   briefs: BriefItem[];
+  covers: ChapterCoverItem[];
+};
+
+type PreviousChapterPayload = {
+  id: string;
+  chapterNo: number;
+  title: string;
+  summary: string;
+  corePayoff: string | null;
+  endingHook: string | null;
+  briefs: Array<{
+    briefData: {
+      endingHook?: string;
+    };
+  }>;
+  drafts: Array<{
+    content: string;
+  }>;
 };
 
 type BriefForm = {
@@ -67,6 +106,7 @@ export default function ChapterWriterPage({
   const [projectId, setProjectId] = useState("");
   const [chapterId, setChapterId] = useState("");
   const [chapter, setChapter] = useState<ChapterPayload | null>(null);
+  const [previousChapter, setPreviousChapter] = useState<PreviousChapterPayload | null>(null);
   const [outputLanguage, setOutputLanguage] = useState<OutputLanguageValue>("ZH_CN");
   const [briefForm, setBriefForm] = useState<BriefForm>({
     opening: "",
@@ -77,14 +117,20 @@ export default function ChapterWriterPage({
     notes: "",
   });
   const [content, setContent] = useState("");
+  const [coverCharacterId, setCoverCharacterId] = useState("");
+  const [coverScenePrompt, setCoverScenePrompt] = useState("");
+  const [coverShotPrompt, setCoverShotPrompt] = useState("竖版封面，电影感半身或近景，角色主体清晰");
+  const [coverMoodPrompt, setCoverMoodPrompt] = useState("");
   const [selectedBriefId, setSelectedBriefId] = useState<string | null>(null);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [selectedCoverId, setSelectedCoverId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [savingBrief, setSavingBrief] = useState(false);
   const [generatingBrief, setGeneratingBrief] = useState(false);
   const [generatingNextChapter, setGeneratingNextChapter] = useState(false);
+  const [generatingCover, setGeneratingCover] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -113,6 +159,7 @@ export default function ChapterWriterPage({
       const data = (await response.json()) as {
         message?: string;
         chapter?: ChapterPayload;
+        previousChapter?: PreviousChapterPayload | null;
       };
 
       if (!response.ok || !data.chapter) {
@@ -120,7 +167,16 @@ export default function ChapterWriterPage({
       }
 
       setChapter(data.chapter);
+      setPreviousChapter(data.previousChapter ?? null);
       setOutputLanguage(data.chapter.project.defaultOutputLanguage);
+      setCoverCharacterId(
+        data.chapter.project.characters.find((character) => character.isVisualAnchor)?.id ??
+          data.chapter.project.characters[0]?.id ??
+          "",
+      );
+      setCoverScenePrompt(data.chapter.summary ?? "");
+      setCoverMoodPrompt(data.chapter.corePayoff ?? data.chapter.endingHook ?? "");
+      setSelectedCoverId(data.chapter.covers[0]?.id ?? null);
 
       const currentBrief = data.chapter.briefs[0];
       if (currentBrief) {
@@ -175,6 +231,50 @@ export default function ChapterWriterPage({
     setOutputLanguage(draft.language);
     setContent(draft.content);
     setSuccess(`已载入正文草稿 Draft #${draft.draftNo} 到编辑区。`);
+  }
+
+  async function handleGenerateCover() {
+    if (!chapterId) {
+      setError("章节 ID 缺失。");
+      return;
+    }
+
+    setGeneratingCover(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/ai/chapters/${chapterId}/cover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterId: coverCharacterId || undefined,
+          scenePrompt: coverScenePrompt,
+          shotPrompt: coverShotPrompt,
+          moodPrompt: coverMoodPrompt,
+        }),
+      });
+      const data = (await response.json()) as {
+        message?: string;
+        cover?: ChapterCoverItem;
+        model?: string;
+      };
+
+      if (!response.ok || !data.cover) {
+        throw new Error(data.message ?? "AI 生成章节封面失败。");
+      }
+
+      setSuccess(`章节封面已生成，当前模型：${data.model ?? "未返回"}`);
+      await loadChapter(chapterId);
+    } catch (generationError) {
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "AI 生成章节封面失败。",
+      );
+    } finally {
+      setGeneratingCover(false);
+    }
   }
 
   async function handleGenerateBrief() {
@@ -365,6 +465,11 @@ export default function ChapterWriterPage({
     chapter?.briefs.find((brief) => brief.id === selectedBriefId) ?? chapter?.briefs[0] ?? null;
   const selectedDraft =
     chapter?.drafts.find((draft) => draft.id === selectedDraftId) ?? chapter?.drafts[0] ?? null;
+  const selectedCover =
+    chapter?.covers.find((cover) => cover.id === selectedCoverId) ?? chapter?.covers[0] ?? null;
+  const targetWordCount = chapter?.wordCountTarget ?? 1800;
+  const currentContentCount = content.trim().length;
+  const selectedDraftCount = selectedDraft?.wordCount ?? 0;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -381,6 +486,12 @@ export default function ChapterWriterPage({
               </p>
             </div>
             <div className="flex gap-3">
+              <Link
+                href={projectId ? `/projects/${projectId}/characters` : "/projects"}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+              >
+                角色形象库
+              </Link>
               <Link
                 href={projectId ? `/projects/${projectId}/chapters` : "/projects"}
                 className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
@@ -542,6 +653,151 @@ export default function ChapterWriterPage({
                 {error ? <p className="mt-4 text-sm text-rose-600">{error}</p> : null}
                 {success ? <p className="mt-4 text-sm text-emerald-600">{success}</p> : null}
 
+                {previousChapter ? (
+                  <div className="mt-8 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
+                    <h3 className="text-lg font-semibold">上一章承接信息</h3>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl bg-white p-4 text-sm leading-7 text-zinc-700">
+                        <p>
+                          <strong>上一章：</strong>
+                          第 {previousChapter.chapterNo} 章《{previousChapter.title}》
+                        </p>
+                        <p className="mt-2">
+                          <strong>摘要：</strong>
+                          {previousChapter.summary}
+                        </p>
+                        <p className="mt-2">
+                          <strong>爽点：</strong>
+                          {previousChapter.corePayoff || "未记录"}
+                        </p>
+                        <p className="mt-2">
+                          <strong>结尾钩子：</strong>
+                          {previousChapter.endingHook || "未记录"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 text-sm leading-7 text-zinc-700">
+                        <p>
+                          <strong>细纲结尾：</strong>
+                          {previousChapter.briefs[0]?.briefData?.endingHook || "未记录"}
+                        </p>
+                        <p className="mt-2 whitespace-pre-wrap">
+                          <strong>正文最后状态：</strong>
+                          {previousChapter.drafts[0]?.content.slice(-220) || "上一章还没有正文草稿。"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-8 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold">章节封面</h3>
+                    <button
+                      type="button"
+                      onClick={handleGenerateCover}
+                      disabled={generatingCover || !chapter?.project.characters.length}
+                      className="rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {generatingCover ? "封面生成中..." : "AI 生成本章封面"}
+                    </button>
+                  </div>
+                  {chapter?.project.characters.length ? (
+                    <>
+                      <div className="mt-4 grid gap-4">
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-zinc-700">锁定角色</span>
+                          <select
+                            value={coverCharacterId}
+                            onChange={(event) => setCoverCharacterId(event.target.value)}
+                            className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400"
+                          >
+                            {chapter.project.characters.map((character) => (
+                              <option key={character.id} value={character.id}>
+                                {character.name}
+                                {character.isVisualAnchor ? " · 默认视觉锚点" : ""}
+                                {character.referenceImageData ? "" : " · 未锁参考图"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-zinc-700">场景描述</span>
+                          <textarea
+                            rows={3}
+                            value={coverScenePrompt}
+                            onChange={(event) => setCoverScenePrompt(event.target.value)}
+                            className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                          />
+                        </label>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-zinc-700">镜头构图</span>
+                            <input
+                              value={coverShotPrompt}
+                              onChange={(event) => setCoverShotPrompt(event.target.value)}
+                              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-2 block text-sm font-medium text-zinc-700">情绪气氛</span>
+                            <input
+                              value={coverMoodPrompt}
+                              onChange={(event) => setCoverMoodPrompt(event.target.value)}
+                              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 space-y-3">
+                        {chapter.covers.length ? (
+                          chapter.covers.map((cover) => (
+                            <button
+                              key={cover.id}
+                              type="button"
+                              onClick={() => setSelectedCoverId(cover.id)}
+                              className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                                selectedCoverId === cover.id
+                                  ? "border-amber-400 bg-white"
+                                  : "border-zinc-200 hover:border-zinc-900"
+                              }`}
+                            >
+                              <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
+                                <span>封面版本</span>
+                                <span>{cover.modelName ?? "未记录模型"}</span>
+                                <span>{new Date(cover.createdAt).toLocaleString()}</span>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-zinc-500">
+                            还没有章节封面。先锁定主角参考图，再点“AI 生成本章封面”。
+                          </p>
+                        )}
+                      </div>
+
+                      {selectedCover ? (
+                        <div className="mt-4 rounded-[1.5rem] border border-zinc-200 bg-white p-4">
+                          <Image
+                            src={selectedCover.imageData}
+                            alt={`${chapter?.title ?? "章节"} 封面`}
+                            width={1024}
+                            height={1536}
+                            className="w-full rounded-[1.25rem] border border-zinc-200 object-cover"
+                          />
+                          <p className="mt-3 text-xs leading-6 text-zinc-500">
+                            场景：{selectedCover.scenePrompt}
+                          </p>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="mt-4 text-sm text-zinc-500">
+                      还没有角色视觉锚点。先去角色形象库创建主角，并生成参考图。
+                    </p>
+                  )}
+                </div>
+
                 <div className="mt-8">
                   <h3 className="text-lg font-semibold">历史细纲</h3>
                   <div className="mt-4 space-y-3">
@@ -630,6 +886,7 @@ export default function ChapterWriterPage({
                             <span>Draft #{draft.draftNo}</span>
                             <span>{getOutputLanguageLabel(draft.language)}</span>
                             <span>{draft.generationMode ?? "unknown"}</span>
+                            <span>{draft.wordCount} 字</span>
                           </div>
                         </button>
                       ))
@@ -675,6 +932,20 @@ export default function ChapterWriterPage({
 
               <section className="rounded-[1.5rem] border border-zinc-200 bg-white p-5">
                 <h2 className="text-2xl font-semibold">正文编辑器</h2>
+                <div className="mt-5 grid gap-3 rounded-[1.25rem] border border-amber-100 bg-amber-50/60 p-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-amber-700">目标字数</p>
+                    <p className="mt-2 text-sm font-medium text-zinc-800">{targetWordCount} 字</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-amber-700">当前编辑字数</p>
+                    <p className="mt-2 text-sm font-medium text-zinc-800">{currentContentCount} 字</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-amber-700">对比草稿字数</p>
+                    <p className="mt-2 text-sm font-medium text-zinc-800">{selectedDraftCount} 字</p>
+                  </div>
+                </div>
                 <textarea
                   value={content}
                   onChange={(event) => setContent(event.target.value)}
