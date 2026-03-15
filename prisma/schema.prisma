@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProjectStatus {
+  PLANNING
+  WRITING
+  COMPLETED
+  ARCHIVED
+}
+
+enum OutlineType {
+  FULL_BOOK
+}
+
+enum ChapterStatus {
+  PLANNED
+  BRIEFED
+  DRAFTED
+  REVISED
+  DONE
+}
+
+enum CharacterRole {
+  PROTAGONIST
+  SUPPORTING
+  ANTAGONIST
+  MENTOR
+  LOVE_INTEREST
+  OTHER
+}
+
+enum WorldRuleCategory {
+  WORLD
+  POWER_SYSTEM
+  FACTION
+  ITEM
+  SYSTEM
+  PLOT
+  OTHER
+}
+
+enum ForeshadowStatus {
+  PLANTED
+  PENDING
+  RESOLVED
+}
+
+model Project {
+  id               String        @id @default(cuid())
+  title            String
+  genre            String
+  premise          String
+  tone             String?
+  targetWords      Int?
+  status           ProjectStatus @default(PLANNING)
+  currentChapterNo Int           @default(0)
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  storyBible       StoryBible?
+  outline          Outline?
+  chapters         Chapter[]
+  characters       Character[]
+  worldRules       WorldRule[]
+  foreshadows      Foreshadow[]
+
+  @@index([status, updatedAt])
+}
+
+model StoryBible {
+  id                   String   @id @default(cuid())
+  projectId            String   @unique
+  logline              String
+  synopsis             String
+  protagonistProfile   Json
+  supportingCast       Json?
+  antagonistProfile    Json?
+  worldSetting         Json?
+  powerSystem          Json?
+  coreConflict         String
+  mainPlot             Json?
+  earlyStageHighlights Json?
+  styleRules           Json?
+  lockedFields         Json?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Outline {
+  id            String      @id @default(cuid())
+  projectId     String      @unique
+  outlineType   OutlineType @default(FULL_BOOK)
+  title         String?
+  summary       String?
+  structureData Json
+  version       Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapters      Chapter[]
+}
+
+model Chapter {
+  id               String         @id @default(cuid())
+  projectId        String
+  outlineId        String?
+  volumeNo         Int            @default(1)
+  chapterNo        Int
+  title            String
+  summary          String
+  corePayoff       String?
+  endingHook       String?
+  status           ChapterStatus  @default(PLANNED)
+  wordCountTarget  Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outline          Outline?       @relation(fields: [outlineId], references: [id], onDelete: SetNull)
+  briefs           ChapterBrief[]
+  drafts           ChapterDraft[]
+  setupForeshadow  Foreshadow[]   @relation("ForeshadowSetup")
+  payoffForeshadow Foreshadow[]   @relation("ForeshadowPayoff")
+
+  @@unique([projectId, chapterNo])
+  @@index([projectId, volumeNo])
+  @@index([outlineId])
+}
+
+model ChapterBrief {
+  id        String   @id @default(cuid())
+  chapterId String
+  briefData Json
+  notes     String?
+  version   Int      @default(1)
+  isCurrent Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId, isCurrent])
+}
+
+model ChapterDraft {
+  id             String   @id @default(cuid())
+  chapterId      String
+  draftNo        Int
+  content        String
+  wordCount      Int
+  modelName      String?
+  promptSnapshot Json?
+  isCurrent      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, draftNo])
+  @@index([chapterId, isCurrent])
+}
+
+model Character {
+  id            String        @id @default(cuid())
+  projectId     String
+  name          String
+  role          CharacterRole @default(SUPPORTING)
+  profile       Json
+  personality   Json?
+  goals         Json?
+  currentStatus Json?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, role])
+}
+
+model WorldRule {
+  id        String            @id @default(cuid())
+  projectId String
+  category  WorldRuleCategory @default(OTHER)
+  name      String
+  content   Json
+  isLocked  Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, category])
+}
+
+model Foreshadow {
+  id              String           @id @default(cuid())
+  projectId       String
+  setupChapterId  String?
+  payoffChapterId String?
+  content         String
+  status          ForeshadowStatus @default(PLANTED)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  setupChapter    Chapter?         @relation("ForeshadowSetup", fields: [setupChapterId], references: [id], onDelete: SetNull)
+  payoffChapter   Chapter?         @relation("ForeshadowPayoff", fields: [payoffChapterId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@index([setupChapterId])
+  @@index([payoffChapterId])
+}

@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Novel
 
-## Getting Started
+一个给自己用的中文爽文写作后台，当前第一阶段已经接好：
 
-First, run the development server:
+- `Next.js`
+- `Vercel`
+- `Supabase Postgres`
+- `Prisma`
+
+现在的目标不是做公开小说平台，而是先把这条写作链跑通：
+
+`灵感 -> 故事设定 -> 大纲 -> 章节目录 -> 本章细纲 -> 正文草稿`
+
+## 当前数据库结构
+
+Prisma schema 已包含这些核心表：
+
+- `Project`
+- `StoryBible`
+- `Outline`
+- `Chapter`
+- `ChapterBrief`
+- `ChapterDraft`
+- `Character`
+- `WorldRule`
+- `Foreshadow`
+
+这些表已经覆盖第一版自用工作流：
+
+- 项目管理
+- 故事圣经
+- 全书大纲
+- 章节目录
+- 本章细纲
+- 正文多版本草稿
+- 角色设定
+- 世界规则
+- 伏笔追踪
+
+## 本地启动
+
+1. 安装依赖
+
+```bash
+npm install
+```
+
+2. 复制环境变量模板
+
+```bash
+cp .env.example .env
+```
+
+3. 在 Supabase 控制台里准备这些值
+
+- `DATABASE_URL`
+- `DIRECT_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+建议：
+
+- `DATABASE_URL` 用运行时连接串
+- `DIRECT_URL` 用直连数据库的连接串，方便 Prisma migration
+
+4. 生成 Prisma Client
+
+```bash
+npm run prisma:generate
+```
+
+5. 把 schema 推到数据库
+
+开发阶段可直接：
+
+```bash
+npm run prisma:push
+```
+
+如果你想保留 migration 记录：
+
+```bash
+npm run prisma:migrate
+```
+
+6. 启动开发环境
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 常用脚本
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run prisma:generate
+npm run prisma:push
+npm run prisma:migrate
+npm run prisma:deploy
+npm run prisma:studio
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 目录说明
 
-## Learn More
+- [prisma/schema.prisma](/Users/rms/Desktop/Ai%20Project/Ai%20Novel/prisma/schema.prisma)
+- [prisma.config.ts](/Users/rms/Desktop/Ai%20Project/Ai%20Novel/prisma.config.ts)
+- [src/lib/prisma.ts](/Users/rms/Desktop/Ai%20Project/Ai%20Novel/src/lib/prisma.ts)
+- [src/lib/supabase.ts](/Users/rms/Desktop/Ai%20Project/Ai%20Novel/src/lib/supabase.ts)
 
-To learn more about Next.js, take a look at the following resources:
+## 下一步建议
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+最顺的下一步是做这三个模块：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. `projects` 作品列表页
+2. `story-bible` 故事设定生成页
+3. `chapters` 目录与正文工作台
