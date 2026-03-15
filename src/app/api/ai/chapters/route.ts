@@ -104,6 +104,9 @@ export async function POST(request: Request) {
     const client = getOpenAIClient();
     const response = await client.responses.create({
       model: getOpenAIModel(),
+      reasoning: {
+        effort: "low",
+      },
       instructions:
         "你是一个擅长中文爽文策划的小说编辑。请基于用户已经确认的故事设定和全书大纲，生成一份中文章节目录。输出必须是简体中文，章节标题要有网文连载感，每章摘要要明确推进，结尾钩子要能促使读者继续点下一章。不要解释，不要输出额外文字，只输出符合 schema 的 JSON。",
       input: [
@@ -120,7 +123,7 @@ export async function POST(request: Request) {
         `结局方向：${structure.finaleDirection ?? ""}`,
         `请生成前 ${chapterCount} 章的中文章节目录。`,
       ].join("\n"),
-      max_output_tokens: 3200,
+      max_output_tokens: 4800,
       text: {
         format: {
           type: "json_schema",
@@ -131,11 +134,40 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!response.output_text) {
-      throw new Error("Model returned an empty response.");
+    if (response.incomplete_details?.reason === "max_output_tokens") {
+      return NextResponse.json(
+        {
+          message:
+            "AI 生成章节目录时输出被截断了。请重试一次，或减少章节数后再生成。",
+        },
+        { status: 502 },
+      );
     }
 
-    const draft = JSON.parse(response.output_text) as ChapterDraft;
+    if (!response.output_text) {
+      return NextResponse.json(
+        {
+          message: "AI 没有返回可用的章节目录内容。请重试一次。",
+        },
+        { status: 502 },
+      );
+    }
+
+    let draft: ChapterDraft;
+
+    try {
+      draft = JSON.parse(response.output_text) as ChapterDraft;
+    } catch (parseError) {
+      console.error("Failed to parse generated chapter outline", parseError);
+
+      return NextResponse.json(
+        {
+          message:
+            "AI 返回的章节目录格式不完整，可能是输出被截断了。请重试一次，或减少章节数后再生成。",
+        },
+        { status: 502 },
+      );
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.chapter.deleteMany({
@@ -174,8 +206,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message:
-          "AI 生成章节目录失败。请确认 OPENAI_API_KEY 已经配置，并检查数据库连接是否正常。",
+        message: "AI 生成章节目录失败，请稍后重试。",
       },
       { status: 500 },
     );
