@@ -58,11 +58,14 @@ cp .env.example .env
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
 
 建议：
 
 - `DATABASE_URL` 用运行时连接串
 - `DIRECT_URL` 用直连数据库的连接串，方便 Prisma migration
+- `OPENAI_MODEL` 不填时默认走 `gpt-5-mini`
 
 4. 生成 Prisma Client
 

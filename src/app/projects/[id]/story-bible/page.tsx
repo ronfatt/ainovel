@@ -74,6 +74,7 @@ export default function StoryBiblePage({
   const [version, setVersion] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -195,6 +196,63 @@ export default function StoryBiblePage({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGenerateDraft() {
+    if (!projectId) {
+      setError("项目 ID 缺失。");
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/ai/story-bible", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      const data = (await response.json()) as {
+        message?: string;
+        draft?: StoryBibleForm;
+        storyBible?: StoryBibleResponse;
+        model?: string;
+      };
+
+      if (!response.ok || !data.draft) {
+        throw new Error(data.message ?? "AI 生成失败。");
+      }
+
+      setForm({
+        logline: data.draft.logline ?? "",
+        synopsis: data.draft.synopsis ?? "",
+        coreConflict: data.draft.coreConflict ?? "",
+        protagonistProfile: data.draft.protagonistProfile ?? "",
+        supportingCast: data.draft.supportingCast ?? "",
+        antagonistProfile: data.draft.antagonistProfile ?? "",
+        worldSetting: data.draft.worldSetting ?? "",
+        powerSystem: data.draft.powerSystem ?? "",
+        mainPlot: data.draft.mainPlot ?? "",
+        earlyStageHighlights: data.draft.earlyStageHighlights ?? "",
+        styleRules: data.draft.styleRules ?? "",
+        lockedFields: data.draft.lockedFields ?? "",
+      });
+      setVersion(data.storyBible?.version ?? version);
+      setSuccess(`AI 已生成一版故事设定初稿，当前模型：${data.model ?? "未返回"}`);
+    } catch (generationError) {
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "AI 生成失败，请稍后再试。",
+      );
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -349,6 +407,14 @@ export default function StoryBiblePage({
               {success ? <p className="text-sm text-emerald-600">{success}</p> : null}
 
               <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateDraft}
+                  disabled={generating || loading}
+                  className="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {generating ? "AI 生成中..." : "AI 生成初稿"}
+                </button>
                 <button
                   type="submit"
                   disabled={saving}
