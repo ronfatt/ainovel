@@ -82,10 +82,18 @@ export async function POST(request: Request, context: RouteContext) {
       midpointTwist?: string;
       finaleDirection?: string;
     };
+    const targetWordCount = chapter.wordCountTarget ?? 1800;
+    const maxOutputTokens = Math.min(
+      9000,
+      Math.max(4200, Math.ceil(targetWordCount * 2.8)),
+    );
 
     const client = getOpenAIClient();
     const response = await client.responses.create({
       model: getOpenAIModel(),
+      reasoning: {
+        effort: "low",
+      },
       instructions: [
         "你是一个擅长长篇连载网文的职业小说作者。",
         "你会严格根据中文母稿设定、大纲和章节摘要写正文，不乱改主线。",
@@ -116,16 +124,31 @@ export async function POST(request: Request, context: RouteContext) {
         `本章细纲爽点：${(currentBrief?.briefData as { payoff?: string } | null)?.payoff ?? ""}`,
         `本章细纲转折：${(currentBrief?.briefData as { twist?: string } | null)?.twist ?? ""}`,
         `本章细纲结尾：${(currentBrief?.briefData as { endingHook?: string } | null)?.endingHook ?? ""}`,
-        `目标字数：${chapter.wordCountTarget ?? 1800}`,
+        `目标字数：${targetWordCount}`,
         "请直接输出正文，不要加标题解释，不要输出 JSON。",
       ].join("\n"),
-      max_output_tokens: 3200,
+      max_output_tokens: maxOutputTokens,
     });
+
+    if (response.incomplete_details?.reason === "max_output_tokens") {
+      return NextResponse.json(
+        {
+          message:
+            "AI 生成正文时输出被截断了。请重试一次，或适当降低本章目标字数后再生成。",
+        },
+        { status: 502 },
+      );
+    }
 
     const content = response.output_text?.trim();
 
     if (!content) {
-      throw new Error("Model returned an empty draft.");
+      return NextResponse.json(
+        {
+          message: "AI 没有返回可用的正文内容。请重试一次。",
+        },
+        { status: 502 },
+      );
     }
 
     const lastDraft = await prisma.chapterDraft.findFirst({
@@ -161,8 +184,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        message:
-          "AI 生成正文失败。请确认 OPENAI_API_KEY 已经配置，并检查数据库连接是否正常。",
+        message: "AI 生成正文失败，请稍后重试。",
       },
       { status: 500 },
     );
