@@ -77,6 +77,8 @@ export default function ChapterWriterPage({
     notes: "",
   });
   const [content, setContent] = useState("");
+  const [selectedBriefId, setSelectedBriefId] = useState<string | null>(null);
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -121,6 +123,7 @@ export default function ChapterWriterPage({
 
       const currentBrief = data.chapter.briefs[0];
       if (currentBrief) {
+        setSelectedBriefId(currentBrief.id);
         setBriefForm({
           opening: currentBrief.briefData?.opening ?? "",
           conflict: currentBrief.briefData?.conflict ?? "",
@@ -136,6 +139,7 @@ export default function ChapterWriterPage({
       );
 
       if (latestDraft) {
+        setSelectedDraftId(latestDraft.id);
         setContent(latestDraft.content);
       }
     } catch (loadError) {
@@ -150,6 +154,26 @@ export default function ChapterWriterPage({
       ...current,
       [key]: value,
     }));
+  }
+
+  function loadBriefVersion(brief: BriefItem) {
+    setSelectedBriefId(brief.id);
+    setBriefForm({
+      opening: brief.briefData?.opening ?? "",
+      conflict: brief.briefData?.conflict ?? "",
+      payoff: brief.briefData?.payoff ?? "",
+      twist: brief.briefData?.twist ?? "",
+      endingHook: brief.briefData?.endingHook ?? "",
+      notes: brief.notes ?? "",
+    });
+    setSuccess(`已载入细纲版本 v${brief.version} 到编辑区。`);
+  }
+
+  function loadDraftVersion(draft: DraftItem) {
+    setSelectedDraftId(draft.id);
+    setOutputLanguage(draft.language);
+    setContent(draft.content);
+    setSuccess(`已载入正文草稿 Draft #${draft.draftNo} 到编辑区。`);
   }
 
   async function handleGenerateBrief() {
@@ -299,6 +323,11 @@ export default function ChapterWriterPage({
       setSaving(false);
     }
   }
+
+  const selectedBrief =
+    chapter?.briefs.find((brief) => brief.id === selectedBriefId) ?? chapter?.briefs[0] ?? null;
+  const selectedDraft =
+    chapter?.drafts.find((draft) => draft.id === selectedDraftId) ?? chapter?.drafts[0] ?? null;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -469,18 +498,88 @@ export default function ChapterWriterPage({
                 {success ? <p className="mt-4 text-sm text-emerald-600">{success}</p> : null}
 
                 <div className="mt-8">
-                  <h3 className="text-lg font-semibold">最近草稿</h3>
+                  <h3 className="text-lg font-semibold">历史细纲</h3>
+                  <div className="mt-4 space-y-3">
+                    {chapter?.briefs.length ? (
+                      chapter.briefs.map((brief) => (
+                        <button
+                          key={brief.id}
+                          type="button"
+                          onClick={() => setSelectedBriefId(brief.id)}
+                          className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                            selectedBriefId === brief.id
+                              ? "border-amber-400 bg-amber-50"
+                              : "border-zinc-200 hover:border-zinc-900"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
+                              <span>Brief v{brief.version}</span>
+                              <span>{brief.notes ? "含补充说明" : "无补充说明"}</span>
+                            </div>
+                            <span className="text-xs text-zinc-500">
+                              {selectedBriefId === brief.id ? "对比中" : "点击对比"}
+                            </span>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-sm text-zinc-500">还没有细纲历史。</p>
+                    )}
+                  </div>
+
+                  {selectedBrief ? (
+                    <div className="mt-4 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-zinc-900">
+                          细纲版本对比 · v{selectedBrief.version}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => loadBriefVersion(selectedBrief)}
+                          className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                        >
+                          载入此细纲
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl bg-white p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">当前编辑区</p>
+                          <div className="mt-3 space-y-2 text-sm leading-7 text-zinc-700">
+                            <p><strong>开场：</strong>{briefForm.opening || "未填写"}</p>
+                            <p><strong>冲突：</strong>{briefForm.conflict || "未填写"}</p>
+                            <p><strong>爽点：</strong>{briefForm.payoff || "未填写"}</p>
+                            <p><strong>转折：</strong>{briefForm.twist || "未填写"}</p>
+                            <p><strong>结尾：</strong>{briefForm.endingHook || "未填写"}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-white p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">历史版本</p>
+                          <div className="mt-3 space-y-2 text-sm leading-7 text-zinc-700">
+                            <p><strong>开场：</strong>{selectedBrief.briefData?.opening || "未填写"}</p>
+                            <p><strong>冲突：</strong>{selectedBrief.briefData?.conflict || "未填写"}</p>
+                            <p><strong>爽点：</strong>{selectedBrief.briefData?.payoff || "未填写"}</p>
+                            <p><strong>转折：</strong>{selectedBrief.briefData?.twist || "未填写"}</p>
+                            <p><strong>结尾：</strong>{selectedBrief.briefData?.endingHook || "未填写"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <h3 className="mt-8 text-lg font-semibold">最近草稿</h3>
                   <div className="mt-4 space-y-3">
                     {chapter?.drafts.length ? (
                       chapter.drafts.map((draft) => (
                         <button
                           key={draft.id}
                           type="button"
-                          onClick={() => {
-                            setContent(draft.content);
-                            setOutputLanguage(draft.language);
-                          }}
-                          className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-left text-sm transition hover:border-zinc-900"
+                          onClick={() => setSelectedDraftId(draft.id)}
+                          className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                            selectedDraftId === draft.id
+                              ? "border-amber-400 bg-amber-50"
+                              : "border-zinc-200 hover:border-zinc-900"
+                          }`}
                         >
                           <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
                             <span>Draft #{draft.draftNo}</span>
@@ -493,6 +592,39 @@ export default function ChapterWriterPage({
                       <p className="text-sm text-zinc-500">还没有草稿。</p>
                     )}
                   </div>
+
+                  {selectedDraft ? (
+                    <div className="mt-4 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-zinc-900">
+                          正文版本对比 · Draft #{selectedDraft.draftNo}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => loadDraftVersion(selectedDraft)}
+                          className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                        >
+                          载入此草稿
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl bg-white p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">当前编辑区</p>
+                          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-zinc-700">
+                            {content || "当前编辑区为空。"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+                            历史版本 · {getOutputLanguageLabel(selectedDraft.language)}
+                          </p>
+                          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-zinc-700">
+                            {selectedDraft.content}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </section>
 
