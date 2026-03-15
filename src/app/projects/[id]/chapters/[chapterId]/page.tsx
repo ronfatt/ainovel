@@ -19,6 +19,19 @@ type DraftItem = {
   createdAt: string;
 };
 
+type BriefItem = {
+  id: string;
+  version: number;
+  notes: string | null;
+  briefData: {
+    opening?: string;
+    conflict?: string;
+    payoff?: string;
+    twist?: string;
+    endingHook?: string;
+  };
+};
+
 type ChapterPayload = {
   id: string;
   chapterNo: number;
@@ -34,6 +47,16 @@ type ChapterPayload = {
     terminologyMode: string;
   };
   drafts: DraftItem[];
+  briefs: BriefItem[];
+};
+
+type BriefForm = {
+  opening: string;
+  conflict: string;
+  payoff: string;
+  twist: string;
+  endingHook: string;
+  notes: string;
 };
 
 export default function ChapterWriterPage({
@@ -45,10 +68,20 @@ export default function ChapterWriterPage({
   const [chapterId, setChapterId] = useState("");
   const [chapter, setChapter] = useState<ChapterPayload | null>(null);
   const [outputLanguage, setOutputLanguage] = useState<OutputLanguageValue>("ZH_CN");
+  const [briefForm, setBriefForm] = useState<BriefForm>({
+    opening: "",
+    conflict: "",
+    payoff: "",
+    twist: "",
+    endingHook: "",
+    notes: "",
+  });
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [savingBrief, setSavingBrief] = useState(false);
+  const [generatingBrief, setGeneratingBrief] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -86,6 +119,18 @@ export default function ChapterWriterPage({
       setChapter(data.chapter);
       setOutputLanguage(data.chapter.project.defaultOutputLanguage);
 
+      const currentBrief = data.chapter.briefs[0];
+      if (currentBrief) {
+        setBriefForm({
+          opening: currentBrief.briefData?.opening ?? "",
+          conflict: currentBrief.briefData?.conflict ?? "",
+          payoff: currentBrief.briefData?.payoff ?? "",
+          twist: currentBrief.briefData?.twist ?? "",
+          endingHook: currentBrief.briefData?.endingHook ?? "",
+          notes: currentBrief.notes ?? "",
+        });
+      }
+
       const latestDraft = data.chapter.drafts.find(
         (draft) => draft.language === data.chapter?.project.defaultOutputLanguage,
       );
@@ -97,6 +142,87 @@ export default function ChapterWriterPage({
       setError(loadError instanceof Error ? loadError.message : "读取章节失败。");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function updateBriefField<K extends keyof BriefForm>(key: K, value: BriefForm[K]) {
+    setBriefForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  async function handleGenerateBrief() {
+    if (!chapterId) {
+      setError("章节 ID 缺失。");
+      return;
+    }
+
+    setGeneratingBrief(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/ai/chapters/${chapterId}/brief`, {
+        method: "POST",
+      });
+      const data = (await response.json()) as {
+        message?: string;
+        draft?: BriefForm;
+        model?: string;
+      };
+
+      if (!response.ok || !data.draft) {
+        throw new Error(data.message ?? "AI 生成细纲失败。");
+      }
+
+      setBriefForm({
+        opening: data.draft.opening ?? "",
+        conflict: data.draft.conflict ?? "",
+        payoff: data.draft.payoff ?? "",
+        twist: data.draft.twist ?? "",
+        endingHook: data.draft.endingHook ?? "",
+        notes: data.draft.notes ?? "",
+      });
+      setSuccess(`AI 已生成章节细纲，当前模型：${data.model ?? "未返回"}`);
+      await loadChapter(chapterId);
+    } catch (generationError) {
+      setError(
+        generationError instanceof Error ? generationError.message : "AI 生成细纲失败。",
+      );
+    } finally {
+      setGeneratingBrief(false);
+    }
+  }
+
+  async function handleSaveBrief() {
+    if (!chapterId) {
+      setError("章节 ID 缺失。");
+      return;
+    }
+
+    setSavingBrief(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}/briefs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(briefForm),
+      });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "保存细纲失败。");
+      }
+
+      setSuccess("章节细纲已保存。");
+      await loadChapter(chapterId);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存细纲失败。");
+    } finally {
+      setSavingBrief(false);
     }
   }
 
@@ -230,8 +356,62 @@ export default function ChapterWriterPage({
           ) : (
             <div className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
               <section className="rounded-[1.5rem] border border-zinc-200 bg-white p-5">
-                <h2 className="text-2xl font-semibold">生成设置</h2>
+                <h2 className="text-2xl font-semibold">章节细纲与生成设置</h2>
                 <div className="mt-5 space-y-4">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-zinc-700">开场</span>
+                    <textarea
+                      rows={3}
+                      value={briefForm.opening}
+                      onChange={(event) => updateBriefField("opening", event.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-zinc-700">冲突推进</span>
+                    <textarea
+                      rows={3}
+                      value={briefForm.conflict}
+                      onChange={(event) => updateBriefField("conflict", event.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-zinc-700">爽点爆发</span>
+                    <textarea
+                      rows={3}
+                      value={briefForm.payoff}
+                      onChange={(event) => updateBriefField("payoff", event.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-zinc-700">转折</span>
+                    <textarea
+                      rows={3}
+                      value={briefForm.twist}
+                      onChange={(event) => updateBriefField("twist", event.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-zinc-700">结尾钩子</span>
+                    <textarea
+                      rows={3}
+                      value={briefForm.endingHook}
+                      onChange={(event) => updateBriefField("endingHook", event.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-zinc-700">补充说明</span>
+                    <textarea
+                      rows={3}
+                      value={briefForm.notes}
+                      onChange={(event) => updateBriefField("notes", event.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                    />
+                  </label>
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-zinc-700">输出语言</span>
                     <select
@@ -251,6 +431,22 @@ export default function ChapterWriterPage({
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleGenerateBrief}
+                    disabled={generatingBrief}
+                    className="rounded-full bg-amber-100 px-5 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {generatingBrief ? "细纲生成中..." : "AI 生成细纲"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveBrief}
+                    disabled={savingBrief}
+                    className="rounded-full border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingBrief ? "细纲保存中..." : "保存细纲"}
+                  </button>
                   <button
                     type="button"
                     onClick={handleGenerateDraft}

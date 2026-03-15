@@ -49,6 +49,11 @@ export async function POST(request: Request, context: RouteContext) {
             outline: true,
           },
         },
+        briefs: {
+          where: { isCurrent: true },
+          orderBy: [{ version: "desc" }],
+          take: 1,
+        },
       },
     });
 
@@ -70,6 +75,7 @@ export async function POST(request: Request, context: RouteContext) {
     const generationMode =
       outputLanguage === OutputLanguage.MS_MY ? "localized_adaptation" : "original";
     const storyBible = chapter.project.storyBible;
+    const currentBrief = chapter.briefs[0];
     const structure = chapter.project.outline.structureData as {
       openingHook?: string;
       volumePlan?: string;
@@ -105,6 +111,11 @@ export async function POST(request: Request, context: RouteContext) {
         `章节摘要：${chapter.summary}`,
         `本章爽点：${chapter.corePayoff ?? ""}`,
         `本章结尾钩子：${chapter.endingHook ?? ""}`,
+        `本章细纲开场：${(currentBrief?.briefData as { opening?: string } | null)?.opening ?? ""}`,
+        `本章细纲冲突：${(currentBrief?.briefData as { conflict?: string } | null)?.conflict ?? ""}`,
+        `本章细纲爽点：${(currentBrief?.briefData as { payoff?: string } | null)?.payoff ?? ""}`,
+        `本章细纲转折：${(currentBrief?.briefData as { twist?: string } | null)?.twist ?? ""}`,
+        `本章细纲结尾：${(currentBrief?.briefData as { endingHook?: string } | null)?.endingHook ?? ""}`,
         `目标字数：${chapter.wordCountTarget ?? 1800}`,
         "请直接输出正文，不要加标题解释，不要输出 JSON。",
       ].join("\n"),

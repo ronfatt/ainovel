@@ -15,6 +15,17 @@ type ChapterItem = {
   wordCountTarget: number | null;
 };
 
+type EditableChapter = {
+  id: string;
+  chapterNo: number;
+  volumeNo: number;
+  title: string;
+  summary: string;
+  corePayoff: string;
+  endingHook: string;
+  wordCountTarget: string;
+};
+
 type ProjectPayload = {
   id: string;
   title: string;
@@ -39,11 +50,32 @@ export default function ChaptersPage({
 }) {
   const [projectId, setProjectId] = useState("");
   const [project, setProject] = useState<ProjectPayload | null>(null);
-  const [chapters, setChapters] = useState<ChapterItem[]>([]);
+  const [editableChapters, setEditableChapters] = useState<EditableChapter[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  function toEditable(chapter: ChapterItem): EditableChapter {
+    return {
+      id: chapter.id,
+      chapterNo: chapter.chapterNo,
+      volumeNo: chapter.volumeNo,
+      title: chapter.title,
+      summary: chapter.summary,
+      corePayoff: chapter.corePayoff ?? "",
+      endingHook: chapter.endingHook ?? "",
+      wordCountTarget: chapter.wordCountTarget ? String(chapter.wordCountTarget) : "",
+    };
+  }
+
+  function normalizeChapterNumbers(items: EditableChapter[]) {
+    return items.map((item, index) => ({
+      ...item,
+      chapterNo: index + 1,
+    }));
+  }
 
   useEffect(() => {
     startTransition(() => {
@@ -56,6 +88,8 @@ export default function ChaptersPage({
     startTransition(() => {
       void loadChapters(projectId);
     });
+    // We intentionally reload only when the route param changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function loadChapters(id: string) {
@@ -75,7 +109,7 @@ export default function ChaptersPage({
       }
 
       setProject(data.project);
-      setChapters(data.chapters ?? []);
+      setEditableChapters((data.chapters ?? []).map(toEditable));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "读取章节目录失败。");
     } finally {
@@ -109,7 +143,7 @@ export default function ChaptersPage({
         throw new Error(data.message ?? "AI 生成章节目录失败。");
       }
 
-      setChapters(data.chapters);
+      setEditableChapters(data.chapters.map(toEditable));
       setSuccess(`AI 已生成章节目录，当前模型：${data.model ?? "未返回"}`);
     } catch (generationError) {
       setError(
@@ -119,6 +153,113 @@ export default function ChaptersPage({
       );
     } finally {
       setGenerating(false);
+    }
+  }
+
+  function updateChapterField<K extends keyof EditableChapter>(
+    index: number,
+    key: K,
+    value: EditableChapter[K],
+  ) {
+    setEditableChapters((current) =>
+      current.map((chapter, chapterIndex) =>
+        chapterIndex === index
+          ? {
+              ...chapter,
+              [key]: value,
+            }
+          : chapter,
+      ),
+    );
+  }
+
+  function insertChapterAfter(index: number) {
+    setEditableChapters((current) => {
+      const next = [...current];
+      const after = current[index];
+      next.splice(index + 1, 0, {
+        id: `draft-${crypto.randomUUID()}`,
+        chapterNo: after.chapterNo + 1,
+        volumeNo: after.volumeNo,
+        title: "新章节标题",
+        summary: "",
+        corePayoff: "",
+        endingHook: "",
+        wordCountTarget: after.wordCountTarget || "1800",
+      });
+
+      return normalizeChapterNumbers(next);
+    });
+  }
+
+  function removeChapter(index: number) {
+    setEditableChapters((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      return normalizeChapterNumbers(current.filter((_, chapterIndex) => chapterIndex !== index));
+    });
+  }
+
+  function moveChapter(index: number, direction: "up" | "down") {
+    setEditableChapters((current) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      const [chapter] = next.splice(index, 1);
+      next.splice(targetIndex, 0, chapter);
+
+      return normalizeChapterNumbers(next);
+    });
+  }
+
+  async function handleSaveChapters() {
+    if (!projectId) {
+      setError("项目 ID 缺失。");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const payload = editableChapters.map((chapter) => ({
+        chapterNo: chapter.chapterNo,
+        volumeNo: chapter.volumeNo,
+        title: chapter.title,
+        summary: chapter.summary,
+        corePayoff: chapter.corePayoff || null,
+        endingHook: chapter.endingHook || null,
+        wordCountTarget: chapter.wordCountTarget ? Number(chapter.wordCountTarget) : null,
+      }));
+
+      const response = await fetch(`/api/projects/${projectId}/chapters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chapters: payload }),
+      });
+
+      const data = (await response.json()) as {
+        message?: string;
+        chapters?: ChapterItem[];
+      };
+
+      if (!response.ok || !data.chapters) {
+        throw new Error(data.message ?? "保存章节目录失败。");
+      }
+
+      setEditableChapters(data.chapters.map(toEditable));
+      setSuccess("章节目录已保存。");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存章节目录失败。");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -184,6 +325,14 @@ export default function ChaptersPage({
             >
               {generating ? "AI 生成中..." : "AI 生成章节目录"}
             </button>
+            <button
+              type="button"
+              onClick={handleSaveChapters}
+              disabled={saving || editableChapters.length === 0}
+              className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? "保存中..." : "保存目录修改"}
+            </button>
           </div>
 
           {error ? <p className="mt-4 text-sm text-rose-600">{error}</p> : null}
@@ -194,12 +343,12 @@ export default function ChaptersPage({
               <div className="rounded-[1.5rem] border border-dashed border-zinc-300 px-5 py-8 text-sm text-zinc-500">
                 正在读取章节目录...
               </div>
-            ) : chapters.length === 0 ? (
+            ) : editableChapters.length === 0 ? (
               <div className="rounded-[1.5rem] border border-dashed border-zinc-300 px-5 py-8 text-sm leading-7 text-zinc-500">
                 还没有章节目录。先生成一版目录，再进入单章写作页生成正文。
               </div>
             ) : (
-              chapters.map((chapter) => (
+              editableChapters.map((chapter, index) => (
                 <article
                   key={chapter.id}
                   className="rounded-[1.5rem] border border-zinc-200 bg-white p-5"
@@ -209,20 +358,109 @@ export default function ChaptersPage({
                       <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
                         第 {chapter.chapterNo} 章
                       </p>
-                      <h2 className="mt-2 text-2xl font-semibold">{chapter.title}</h2>
+                      <input
+                        value={chapter.title}
+                        onChange={(event) =>
+                          updateChapterField(index, "title", event.target.value)
+                        }
+                        className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-2xl font-semibold outline-none transition focus:border-amber-400"
+                      />
                     </div>
-                    <Link
-                      href={`/projects/${projectId}/chapters/${chapter.id}`}
-                      className="rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
-                    >
-                      进入写作页
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => moveChapter(index, "up")}
+                        className="rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                      >
+                        上移
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveChapter(index, "down")}
+                        className="rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                      >
+                        下移
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertChapterAfter(index)}
+                        className="rounded-full border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                      >
+                        后插一章
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeChapter(index)}
+                        className="rounded-full border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 transition hover:border-rose-500 hover:text-rose-700"
+                      >
+                        删除
+                      </button>
+                      {chapter.id.startsWith("draft-") ? null : (
+                        <Link
+                          href={`/projects/${projectId}/chapters/${chapter.id}`}
+                          className="rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+                        >
+                          进入写作页
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-zinc-700">{chapter.summary}</p>
-                  <div className="mt-4 flex flex-wrap gap-3 text-xs text-zinc-600">
-                    <span>本章爽点：{chapter.corePayoff ?? "未设置"}</span>
-                    <span>结尾钩子：{chapter.endingHook ?? "未设置"}</span>
-                    <span>目标字数：{chapter.wordCountTarget ?? "未设置"}</span>
+                  <div className="mt-4 grid gap-4">
+                    <label className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-zinc-500">
+                        章节摘要
+                      </span>
+                      <textarea
+                        rows={3}
+                        value={chapter.summary}
+                        onChange={(event) =>
+                          updateChapterField(index, "summary", event.target.value)
+                        }
+                        className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                      />
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <label className="block">
+                        <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-zinc-500">
+                          本章爽点
+                        </span>
+                        <textarea
+                          rows={3}
+                          value={chapter.corePayoff}
+                          onChange={(event) =>
+                            updateChapterField(index, "corePayoff", event.target.value)
+                          }
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-zinc-500">
+                          结尾钩子
+                        </span>
+                        <textarea
+                          rows={3}
+                          value={chapter.endingHook}
+                          onChange={(event) =>
+                            updateChapterField(index, "endingHook", event.target.value)
+                          }
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm leading-7 outline-none transition focus:border-amber-400"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-zinc-500">
+                          目标字数
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={chapter.wordCountTarget}
+                          onChange={(event) =>
+                            updateChapterField(index, "wordCountTarget", event.target.value)
+                          }
+                          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none transition focus:border-amber-400"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </article>
               ))

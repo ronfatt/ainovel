@@ -32,6 +32,10 @@ export async function GET(_: Request, context: RouteContext) {
           orderBy: [{ createdAt: "desc" }],
           take: 6,
         },
+        briefs: {
+          orderBy: [{ version: "desc" }],
+          take: 6,
+        },
       },
     });
 
