@@ -18,6 +18,8 @@ export async function GET(_: Request, context: RouteContext) {
           select: {
             id: true,
             title: true,
+            publicSlug: true,
+            publicTitle: true,
             genre: true,
             premise: true,
             tone: true,

@@ -61,9 +61,12 @@ type ChapterPayload = {
   corePayoff: string | null;
   endingHook: string | null;
   wordCountTarget: number | null;
+  isPublished: boolean;
   project: {
     id: string;
     title: string;
+    publicSlug?: string | null;
+    publicTitle?: string | null;
     defaultOutputLanguage: OutputLanguageValue;
     terminologyMode: string;
     characters: CharacterVisualItem[];
@@ -133,8 +136,10 @@ export default function ChapterWriterPage({
   const [generatingNextChapter, setGeneratingNextChapter] = useState(false);
   const [generatingCover, setGeneratingCover] = useState(false);
   const [settingPrimaryCover, setSettingPrimaryCover] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [publicPath, setPublicPath] = useState<string | null>(null);
 
   useEffect(() => {
     startTransition(() => {
@@ -170,6 +175,11 @@ export default function ChapterWriterPage({
 
       setChapter(data.chapter);
       setPreviousChapter(data.previousChapter ?? null);
+      setPublicPath(
+        data.chapter.project.publicSlug && data.chapter.isPublished
+          ? `/novels/${data.chapter.project.publicSlug}/chapters/${data.chapter.chapterNo}`
+          : null,
+      );
       setOutputLanguage(data.chapter.project.defaultOutputLanguage);
       setCoverCharacterId(
         data.chapter.project.characters.find((character) => character.isVisualAnchor)?.id ??
@@ -312,6 +322,46 @@ export default function ChapterWriterPage({
       );
     } finally {
       setSettingPrimaryCover(false);
+    }
+  }
+
+  async function handlePublishChapter() {
+    if (!chapterId) {
+      setError("章节 ID 缺失。");
+      return;
+    }
+
+    if (!content.trim()) {
+      setError("请先生成或填写正文，再发布本章。");
+      return;
+    }
+
+    setPublishing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = (await response.json()) as {
+        message?: string;
+        publicPath?: string;
+      };
+
+      if (!response.ok || !data.publicPath) {
+        throw new Error(data.message ?? "发布本章失败。");
+      }
+
+      setPublicPath(data.publicPath);
+      setSuccess(data.message ?? "本章已发布。");
+      await loadChapter(chapterId);
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : "发布本章失败。");
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -626,6 +676,28 @@ export default function ChapterWriterPage({
                   <p className="mt-1 text-sm leading-7 text-zinc-300">{nextStep.description}</p>
                 </div>
               </div>
+            </div>
+          ) : null}
+
+          {!loading && chapter ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handlePublishChapter}
+                disabled={publishing || currentContentCount === 0}
+                className="rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {publishing ? "发布中..." : "发布本章"}
+              </button>
+              {publicPath ? (
+                <Link
+                  href={publicPath}
+                  target="_blank"
+                  className="rounded-full border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+                >
+                  查看公开页
+                </Link>
+              ) : null}
             </div>
           ) : null}
 
