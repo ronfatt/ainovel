@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { characterRoleOptions, getCharacterRoleLabel } from "@/lib/character-visual";
 
 type CharacterItem = {
@@ -76,9 +76,11 @@ export default function CharactersPage({
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     startTransition(() => {
@@ -276,6 +278,66 @@ export default function CharactersPage({
       setError(deleteError instanceof Error ? deleteError.message : "删除角色失败。");
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function readFileAsDataUrl(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("图片读取失败。"));
+      };
+      reader.onerror = () => reject(new Error("图片读取失败。"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleUploadReferenceImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!selectedCharacterId) {
+      setError("请先选择一个角色。");
+      event.target.value = "";
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("请选择图片文件。");
+      event.target.value = "";
+      return;
+    }
+
+    setUploadingImage(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const imageData = await readFileAsDataUrl(file);
+      const response = await fetch(`/api/characters/${selectedCharacterId}/reference-image/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData }),
+      });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "上传角色参考图失败。");
+      }
+
+      setSuccess("角色参考图已上传。后续 AI 生图会优先参考这张图。");
+      await loadCharacters(projectId);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "上传角色参考图失败。");
+    } finally {
+      setUploadingImage(false);
+      event.target.value = "";
     }
   }
 
@@ -485,11 +547,26 @@ export default function CharactersPage({
                       </button>
                       <button
                         type="button"
+                        onClick={() => uploadInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="rounded-full border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-800 transition hover:border-zinc-950 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploadingImage ? "上传中..." : "上传参考图"}
+                      </button>
+                      <input
+                        ref={uploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleUploadReferenceImage}
+                      />
+                      <button
+                        type="button"
                         onClick={handleGenerateReference}
                         disabled={generatingImage}
                         className="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {generatingImage ? "生成中..." : "AI 生成参考图"}
+                        {generatingImage ? "生成中..." : "AI 生成/强化参考图"}
                       </button>
                       <button
                         type="button"
@@ -516,7 +593,7 @@ export default function CharactersPage({
                         />
                       ) : (
                         <p className="mt-3 text-sm text-zinc-500">
-                          还没有参考图。先保存角色设定，再点“AI 生成参考图”。
+                          还没有参考图。你可以先上传一张满意的图，或者直接点“AI 生成/强化参考图”。
                         </p>
                       )}
                     </div>

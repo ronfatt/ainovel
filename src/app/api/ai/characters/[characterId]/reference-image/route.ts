@@ -42,6 +42,7 @@ export async function POST(_: Request, context: RouteContext) {
 
     const generated = await generateImage({
       prompt: `${prompt} Project title: ${character.project.title}.`,
+      referenceImageData: character.referenceImageData,
       size: "1024x1536",
       quality: "high",
     });
