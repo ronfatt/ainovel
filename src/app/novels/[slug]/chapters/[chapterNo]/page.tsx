@@ -30,6 +30,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
       },
     },
     select: {
+      projectId: true,
       chapterNo: true,
       publishedTitle: true,
       title: true,
@@ -50,6 +51,34 @@ export default async function PublicChapterPage({ params }: PageProps) {
 
   const novelTitle = chapter.project.publicTitle ?? chapter.project.title;
   const chapterTitle = chapter.publishedTitle ?? chapter.title;
+  const [previousChapter, nextChapter] = await Promise.all([
+    prisma.chapter.findFirst({
+      where: {
+        projectId: chapter.projectId,
+        isPublished: true,
+        chapterNo: { lt: chapter.chapterNo },
+      },
+      orderBy: [{ chapterNo: "desc" }],
+      select: {
+        chapterNo: true,
+        publishedTitle: true,
+        title: true,
+      },
+    }),
+    prisma.chapter.findFirst({
+      where: {
+        projectId: chapter.projectId,
+        isPublished: true,
+        chapterNo: { gt: chapter.chapterNo },
+      },
+      orderBy: [{ chapterNo: "asc" }],
+      select: {
+        chapterNo: true,
+        publishedTitle: true,
+        title: true,
+      },
+    }),
+  ]);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -93,6 +122,41 @@ export default async function PublicChapterPage({ params }: PageProps) {
           <article className="prose prose-zinc mt-10 max-w-none whitespace-pre-wrap text-lg leading-9 text-zinc-800">
             {chapter.publishedContent}
           </article>
+
+          <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-5">
+            {previousChapter ? (
+              <Link
+                href={`/novels/${slug}/chapters/${previousChapter.chapterNo}`}
+                className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+              >
+                上一章 · 第 {previousChapter.chapterNo} 章
+              </Link>
+            ) : (
+              <span className="rounded-full border border-dashed border-zinc-300 px-5 py-3 text-sm text-zinc-400">
+                已经是第一章
+              </span>
+            )}
+
+            <Link
+              href={`/novels/${slug}`}
+              className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
+            >
+              返回章节目录
+            </Link>
+
+            {nextChapter ? (
+              <Link
+                href={`/novels/${slug}/chapters/${nextChapter.chapterNo}`}
+                className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
+              >
+                下一章 · 第 {nextChapter.chapterNo} 章
+              </Link>
+            ) : (
+              <span className="rounded-full border border-dashed border-zinc-300 px-5 py-3 text-sm text-zinc-400">
+                已经是最新章
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </main>
