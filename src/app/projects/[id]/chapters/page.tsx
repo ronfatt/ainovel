@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { startTransition, useEffect, useState } from "react";
 import { getOutputLanguageLabel, getTerminologyModeLabel } from "@/lib/project-language";
@@ -13,6 +14,10 @@ type ChapterItem = {
   corePayoff: string | null;
   endingHook: string | null;
   wordCountTarget: number | null;
+  covers: Array<{
+    id: string;
+    imageData: string;
+  }>;
 };
 
 type EditableChapter = {
@@ -24,6 +29,10 @@ type EditableChapter = {
   corePayoff: string;
   endingHook: string;
   wordCountTarget: string;
+  covers: Array<{
+    id: string;
+    imageData: string;
+  }>;
 };
 
 type ProjectPayload = {
@@ -67,6 +76,7 @@ export default function ChaptersPage({
       corePayoff: chapter.corePayoff ?? "",
       endingHook: chapter.endingHook ?? "",
       wordCountTarget: chapter.wordCountTarget ? String(chapter.wordCountTarget) : "",
+      covers: chapter.covers ?? [],
     };
   }
 
@@ -186,6 +196,7 @@ export default function ChaptersPage({
         corePayoff: "",
         endingHook: "",
         wordCountTarget: after.wordCountTarget || "1800",
+        covers: [],
       });
 
       return normalizeChapterNumbers(next);
@@ -360,7 +371,23 @@ export default function ChaptersPage({
                   className="rounded-[1.5rem] border border-zinc-200 bg-white p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
+                    <div className="flex flex-1 items-start gap-4">
+                      <div className="w-[96px] shrink-0">
+                        {chapter.covers[0]?.imageData ? (
+                          <Image
+                            src={chapter.covers[0].imageData}
+                            alt={`第 ${chapter.chapterNo} 章正式封面`}
+                            width={192}
+                            height={288}
+                            className="aspect-[2/3] w-full rounded-2xl border border-zinc-200 object-cover"
+                          />
+                        ) : (
+                          <div className="flex aspect-[2/3] w-full items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-3 text-center text-xs leading-5 text-zinc-500">
+                            暂无正式封面
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
                       <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
                         第 {chapter.chapterNo} 章
                       </p>
@@ -371,6 +398,7 @@ export default function ChaptersPage({
                         }
                         className="mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-2xl font-semibold outline-none transition focus:border-amber-400"
                       />
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button

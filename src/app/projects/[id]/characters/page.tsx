@@ -76,6 +76,7 @@ export default function CharactersPage({
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -241,6 +242,40 @@ export default function CharactersPage({
       );
     } finally {
       setGeneratingImage(false);
+    }
+  }
+
+  async function handleDeleteCharacter() {
+    if (!selectedCharacterId || !selectedCharacter) {
+      setError("请先选择一个角色。");
+      return;
+    }
+
+    const confirmed = window.confirm(`确定删除角色“${selectedCharacter.name}”吗？`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/characters/${selectedCharacterId}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "删除角色失败。");
+      }
+
+      setSuccess(data.message ?? "角色已删除。");
+      await loadCharacters(projectId);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "删除角色失败。");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -455,6 +490,14 @@ export default function CharactersPage({
                         className="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {generatingImage ? "生成中..." : "AI 生成参考图"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteCharacter}
+                        disabled={deleting}
+                        className="rounded-full border border-rose-200 px-5 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-500 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deleting ? "删除中..." : "删除角色"}
                       </button>
                     </div>
 

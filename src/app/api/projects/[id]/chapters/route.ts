@@ -42,6 +42,19 @@ export async function GET(_: Request, context: RouteContext) {
         },
         chapters: {
           orderBy: [{ chapterNo: "asc" }],
+          include: {
+            covers: {
+              where: {
+                isPrimary: true,
+              },
+              orderBy: [{ createdAt: "desc" }],
+              take: 1,
+              select: {
+                id: true,
+                imageData: true,
+              },
+            },
+          },
         },
       },
     });
@@ -115,6 +128,19 @@ export async function POST(request: Request, context: RouteContext) {
     const savedChapters = await prisma.chapter.findMany({
       where: { projectId: id },
       orderBy: [{ chapterNo: "asc" }],
+      include: {
+        covers: {
+          where: {
+            isPrimary: true,
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: 1,
+          select: {
+            id: true,
+            imageData: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({ chapters: savedChapters });
