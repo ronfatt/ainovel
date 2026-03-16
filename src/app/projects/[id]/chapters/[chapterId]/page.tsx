@@ -508,6 +508,59 @@ export default function ChapterWriterPage({
   const targetWordCount = chapter?.wordCountTarget ?? 1800;
   const currentContentCount = content.trim().length;
   const selectedDraftCount = selectedDraft?.wordCount ?? 0;
+  const hasBriefContent = [
+    briefForm.opening,
+    briefForm.conflict,
+    briefForm.payoff,
+    briefForm.twist,
+    briefForm.endingHook,
+  ].some((value) => value.trim().length > 0);
+  const savedDraftContent = selectedDraft?.content.trim() ?? "";
+  const hasPrimaryCover = chapter?.covers.some((cover) => cover.isPrimary) ?? false;
+  const hasUnsavedDraftChanges =
+    currentContentCount > 0 && content.trim() !== savedDraftContent;
+
+  const nextStep = (() => {
+    if (!hasBriefContent) {
+      return {
+        title: "先生成细纲",
+        description: "先把这一章拆成开场、冲突、爽点、转折和结尾钩子，再去写正文会更稳。",
+      };
+    }
+
+    if (!selectedBrief) {
+      return {
+        title: "先保存细纲",
+        description: "左边细纲已经有内容了，先保存下来，再生成正文会更不容易跑偏。",
+      };
+    }
+
+    if (currentContentCount === 0) {
+      return {
+        title: "接着生成正文",
+        description: "细纲已经准备好了，现在最适合点 AI 生成正文，把这一章先写出来。",
+      };
+    }
+
+    if (hasUnsavedDraftChanges) {
+      return {
+        title: "先保存草稿",
+        description: "当前正文和最近草稿不一致，先保存这一版，后面续写和衔接会更稳。",
+      };
+    }
+
+    if (!hasPrimaryCover) {
+      return {
+        title: "最后生成封面",
+        description: "正文已经成型了，现在可以按本章情绪和场景去生成正式封面。",
+      };
+    }
+
+    return {
+      title: "可以推进下一章",
+      description: "这一章的细纲、正文和正式封面都齐了，接下来适合去生成下一章目录。",
+    };
+  })();
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -560,6 +613,18 @@ export default function ChapterWriterPage({
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-amber-700">结尾钩子</p>
                 <p className="mt-2 text-sm text-zinc-700">{chapter.endingHook ?? "未设置"}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {!loading && chapter ? (
+            <div className="mt-6 rounded-[1.5rem] border border-zinc-200 bg-zinc-950 px-5 py-4 text-white shadow-[0_16px_40px_-28px_rgba(24,24,27,0.65)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-amber-300">Next Step</p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-lg font-semibold">{nextStep.title}</p>
+                  <p className="mt-1 text-sm leading-7 text-zinc-300">{nextStep.description}</p>
+                </div>
               </div>
             </div>
           ) : null}
