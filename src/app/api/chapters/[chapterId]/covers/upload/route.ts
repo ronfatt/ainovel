@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { syncPublishedChapterCover } from "@/lib/public-cover-sync";
 
 type RouteContext = {
   params: Promise<{
@@ -58,6 +59,10 @@ export async function POST(request: Request, context: RouteContext) {
         isPrimary: !hasPrimary,
       },
     });
+
+    if (cover.isPrimary) {
+      await syncPublishedChapterCover(chapterId);
+    }
 
     return NextResponse.json({ cover }, { status: 201 });
   } catch (error) {

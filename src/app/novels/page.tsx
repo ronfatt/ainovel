@@ -1,21 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
+import { OutputLanguage } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  formatPublicChapterLabel,
+  formatPublicPublishedAt,
+  getPublicReaderCopy,
+} from "@/lib/public-reader-language";
 
 export const dynamic = "force-dynamic";
-
-function formatPublishedAt(value: Date | null) {
-  if (!value) {
-    return "刚刚更新";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
-}
 
 export default async function PublicNovelsPage() {
   const [projects, recentUpdates] = await Promise.all([
@@ -34,6 +27,7 @@ export default async function PublicNovelsPage() {
         publicSlug: true,
         publicTitle: true,
         title: true,
+        defaultOutputLanguage: true,
         publicIntro: true,
         publicCoverData: true,
         chapters: {
@@ -43,6 +37,15 @@ export default async function PublicNovelsPage() {
           select: {
             chapterNo: true,
             publishedAt: true,
+            publishedCoverData: true,
+            covers: {
+              where: { isPrimary: true },
+              orderBy: [{ updatedAt: "desc" }],
+              take: 1,
+              select: {
+                imageData: true,
+              },
+            },
           },
         },
       },
@@ -66,6 +69,7 @@ export default async function PublicNovelsPage() {
             publicSlug: true,
             publicTitle: true,
             title: true,
+            defaultOutputLanguage: true,
           },
         },
       },
@@ -86,13 +90,19 @@ export default async function PublicNovelsPage() {
             <div className="grid gap-5 md:grid-cols-2">
               {projects.length ? (
                 projects.map((project) => {
+                const copy = getPublicReaderCopy(project.defaultOutputLanguage);
                 const title = project.publicTitle ?? project.title;
-                const intro = project.publicIntro ?? "这本书还没有公开简介。";
+                const intro = project.publicIntro ?? copy.noPublicIntro;
                 const latestChapter = project.chapters[0];
                 const slug = project.publicSlug ?? project.id;
+                const coverData =
+                  project.publicCoverData ??
+                  latestChapter?.publishedCoverData ??
+                  latestChapter?.covers[0]?.imageData ??
+                  null;
                 const latestUpdateText = latestChapter
-                  ? `更新至第 ${latestChapter.chapterNo} 章 · ${formatPublishedAt(latestChapter.publishedAt ?? null)}`
-                  : "还没有公开章节";
+                  ? `${copy.latestUpdatePrefix}: ${formatPublicChapterLabel(latestChapter.chapterNo, project.defaultOutputLanguage)} · ${formatPublicPublishedAt(latestChapter.publishedAt ?? null, project.defaultOutputLanguage)}`
+                  : copy.noPublicChapter;
 
                   return (
                     <Link
@@ -101,9 +111,9 @@ export default async function PublicNovelsPage() {
                       className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 transition hover:border-zinc-900"
                     >
                       <div className="aspect-[2/3] overflow-hidden rounded-[1.25rem] border border-zinc-200 bg-zinc-50">
-                        {project.publicCoverData ? (
+                        {coverData ? (
                           <Image
-                            src={project.publicCoverData}
+                            src={coverData}
                             alt={`${title} 封面`}
                             width={720}
                             height={1080}
@@ -111,14 +121,14 @@ export default async function PublicNovelsPage() {
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-zinc-500">
-                            暂无公开封面
+                            {copy.noCover}
                           </div>
                         )}
                       </div>
                       <div className="mt-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                            连载中
+                            {copy.statusSerializing}
                           </span>
                           <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">
                             {latestUpdateText}
@@ -127,7 +137,9 @@ export default async function PublicNovelsPage() {
                         <h2 className="text-2xl font-semibold">{title}</h2>
                         <p className="mt-3 line-clamp-4 text-sm leading-7 text-zinc-600">{intro}</p>
                         <p className="mt-4 text-sm font-medium text-amber-700">
-                          {latestChapter ? `最新章节：第 ${latestChapter.chapterNo} 章` : "还没有公开章节"}
+                          {latestChapter
+                            ? `${copy.latestChapterPrefix}: ${formatPublicChapterLabel(latestChapter.chapterNo, project.defaultOutputLanguage)}`
+                            : copy.noPublicChapter}
                         </p>
                       </div>
                     </Link>
@@ -148,6 +160,7 @@ export default async function PublicNovelsPage() {
                   recentUpdates.map((chapter, index) => {
                     const slug = chapter.project.publicSlug ?? "";
                     const novelTitle = chapter.project.publicTitle ?? chapter.project.title;
+                    const language = chapter.project.defaultOutputLanguage ?? OutputLanguage.ZH_CN;
                     return (
                       <Link
                         key={`${slug}-${chapter.chapterNo}-${index}`}
@@ -155,11 +168,11 @@ export default async function PublicNovelsPage() {
                         className="block rounded-2xl border border-zinc-200 bg-white px-4 py-4 transition hover:border-zinc-900"
                       >
                         <p className="text-xs uppercase tracking-[0.16em] text-amber-700">
-                          {formatPublishedAt(chapter.publishedAt ?? null)}
+                          {formatPublicPublishedAt(chapter.publishedAt ?? null, language)}
                         </p>
                         <p className="mt-2 text-sm font-semibold text-zinc-900">{novelTitle}</p>
                         <p className="mt-1 text-sm text-zinc-600">
-                          第 {chapter.chapterNo} 章 · {chapter.publishedTitle ?? chapter.title}
+                          {formatPublicChapterLabel(chapter.chapterNo, language)} · {chapter.publishedTitle ?? chapter.title}
                         </p>
                       </Link>
                     );

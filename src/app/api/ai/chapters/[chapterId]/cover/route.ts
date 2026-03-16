@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildChapterCoverPrompt } from "@/lib/character-visual";
 import { generateImage } from "@/lib/openai-image";
+import { syncPublishedChapterCover } from "@/lib/public-cover-sync";
 
 type RouteContext = {
   params: Promise<{
@@ -125,6 +126,10 @@ export async function POST(request: Request, context: RouteContext) {
         isPrimary: !existingPrimaryCover,
       },
     });
+
+    if (cover.isPrimary) {
+      await syncPublishedChapterCover(chapterId);
+    }
 
     return NextResponse.json({
       cover,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { syncPublishedChapterCover } from "@/lib/public-cover-sync";
 
 type RouteContext = {
   params: Promise<{
@@ -43,6 +44,8 @@ export async function POST(_: Request, context: RouteContext) {
         },
       }),
     ]);
+
+    await syncPublishedChapterCover(chapterId);
 
     return NextResponse.json({ message: "已设为本章正式封面。" });
   } catch (error) {
