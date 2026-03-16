@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   getOutputLanguageLabel,
   getTerminologyModeLabel,
@@ -137,9 +137,11 @@ export default function ChapterWriterPage({
   const [generatingCover, setGeneratingCover] = useState(false);
   const [settingPrimaryCover, setSettingPrimaryCover] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [publicPath, setPublicPath] = useState<string | null>(null);
+  const coverUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     startTransition(() => {
@@ -344,7 +346,7 @@ export default function ChapterWriterPage({
       const response = await fetch(`/api/chapters/${chapterId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, outputLanguage }),
       });
       const data = (await response.json()) as {
         message?: string;
@@ -362,6 +364,55 @@ export default function ChapterWriterPage({
       setError(publishError instanceof Error ? publishError.message : "发布本章失败。");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleUploadCover(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file || !chapterId) {
+      return;
+    }
+
+    setUploadingCover(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            resolve(reader.result);
+            return;
+          }
+
+          reject(new Error("读取图片失败。"));
+        };
+        reader.onerror = () => reject(new Error("读取图片失败。"));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch(`/api/chapters/${chapterId}/covers/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData }),
+      });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "上传章节封面失败。");
+      }
+
+      setSuccess("章节封面已上传。");
+      await loadChapter(chapterId);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "上传章节封面失败。");
+    } finally {
+      if (coverUploadInputRef.current) {
+        coverUploadInputRef.current.value = "";
+      }
+      setUploadingCover(false);
     }
   }
 
@@ -867,14 +918,31 @@ export default function ChapterWriterPage({
                 <div className="mt-8 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-lg font-semibold">章节封面</h3>
-                    <button
-                      type="button"
-                      onClick={handleGenerateCover}
-                      disabled={generatingCover || !chapter?.project.characters.length}
-                      className="rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {generatingCover ? "封面生成中..." : "AI 生成本章封面"}
-                    </button>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={handleGenerateCover}
+                        disabled={generatingCover || !chapter?.project.characters.length}
+                        className="rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {generatingCover ? "封面生成中..." : "AI 生成本章封面"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => coverUploadInputRef.current?.click()}
+                        disabled={uploadingCover}
+                        className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploadingCover ? "上传中..." : "上传自己的封面"}
+                      </button>
+                      <input
+                        ref={coverUploadInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleUploadCover}
+                        className="hidden"
+                      />
+                    </div>
                   </div>
                   {chapter?.project.characters.length ? (
                     <>

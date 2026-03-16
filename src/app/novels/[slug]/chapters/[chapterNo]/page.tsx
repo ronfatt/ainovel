@@ -25,8 +25,8 @@ export default async function PublicChapterPage({ params }: PageProps) {
       chapterNo: parsedChapterNo,
       isPublished: true,
       project: {
-        publicSlug: slug,
         isPublic: true,
+        OR: [{ publicSlug: slug }, { id: slug }],
       },
     },
     select: {
@@ -36,6 +36,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
       title: true,
       publishedContent: true,
       publishedCoverData: true,
+      publicViewCount: true,
       project: {
         select: {
           publicTitle: true,
@@ -48,6 +49,20 @@ export default async function PublicChapterPage({ params }: PageProps) {
   if (!chapter || !chapter.publishedContent) {
     notFound();
   }
+
+  await prisma.chapter.update({
+    where: {
+      projectId_chapterNo: {
+        projectId: chapter.projectId,
+        chapterNo: chapter.chapterNo,
+      },
+    },
+    data: {
+      publicViewCount: {
+        increment: 1,
+      },
+    },
+  });
 
   const novelTitle = chapter.project.publicTitle ?? chapter.project.title;
   const chapterTitle = chapter.publishedTitle ?? chapter.title;
@@ -79,6 +94,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
       },
     }),
   ]);
+  const displayedViewCount = chapter.publicViewCount + 1;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -90,6 +106,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
               <h1 className="mt-3 text-4xl font-semibold tracking-tight">
                 第 {chapter.chapterNo} 章 · {chapterTitle}
               </h1>
+              <p className="mt-3 text-sm text-zinc-500">阅读量：{displayedViewCount}</p>
             </div>
             <div className="flex gap-3">
               <Link

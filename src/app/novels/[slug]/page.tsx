@@ -29,8 +29,8 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
 
   const project = await prisma.project.findFirst({
     where: {
-      publicSlug: slug,
       isPublic: true,
+      OR: [{ publicSlug: slug }, { id: slug }],
       chapters: {
         some: { isPublished: true },
       },
@@ -50,6 +50,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
           publishedTitle: true,
           title: true,
           publishedAt: true,
+          publicViewCount: true,
         },
       },
     },
@@ -61,6 +62,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
 
   const title = project.publicTitle ?? project.title;
   const latestChapter = project.chapters.at(-1) ?? null;
+  const totalViews = project.chapters.reduce((sum, chapter) => sum + chapter.publicViewCount, 0);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -96,6 +98,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
                     {formatPublishedAt(latestChapter.publishedAt ?? null)}
                   </span>
                 ) : null}
+                <span className="text-sm text-zinc-600">总阅读量：{totalViews}</span>
               </div>
               <p className="mt-4 text-sm leading-8 text-zinc-600">
                 {project.publicIntro ?? "这本书还没有公开简介。"}
@@ -128,7 +131,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
                           </p>
                         </div>
                         <span className="text-xs text-zinc-500">
-                          {formatPublishedAt(chapter.publishedAt ?? null)}
+                          {formatPublishedAt(chapter.publishedAt ?? null)} · {chapter.publicViewCount} 阅读
                         </span>
                       </div>
                     </Link>
