@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getPublicSlugCandidates, normalizePublicSlug } from "@/lib/public-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -26,17 +27,18 @@ type PageProps = {
 
 export default async function PublicNovelDetailPage({ params }: PageProps) {
   const { slug } = await params;
+  const normalizedSlug = normalizePublicSlug(slug);
 
-  const project = await prisma.project.findFirst({
+  const projects = await prisma.project.findMany({
     where: {
       isPublic: true,
-      OR: [{ publicSlug: slug }, { id: slug }],
       chapters: {
         some: { isPublished: true },
       },
     },
     select: {
       id: true,
+      publicSlug: true,
       publicTitle: true,
       title: true,
       publicIntro: true,
@@ -56,6 +58,16 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
     },
   });
 
+  const project =
+    projects.find((item) =>
+      getPublicSlugCandidates({
+        projectId: item.id,
+        title: item.title,
+        publicTitle: item.publicTitle,
+        publicSlug: item.publicSlug,
+      }).includes(normalizedSlug),
+    ) ?? null;
+
   if (!project) {
     notFound();
   }
@@ -63,6 +75,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
   const title = project.publicTitle ?? project.title;
   const latestChapter = project.chapters.at(-1) ?? null;
   const totalViews = project.chapters.reduce((sum, chapter) => sum + chapter.publicViewCount, 0);
+  const canonicalSlug = project.publicSlug ?? normalizedSlug;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -118,7 +131,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
                   {project.chapters.map((chapter) => (
                     <Link
                       key={chapter.id}
-                      href={`/novels/${slug}/chapters/${chapter.chapterNo}`}
+                      href={`/novels/${canonicalSlug}/chapters/${chapter.chapterNo}`}
                       className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 transition hover:border-zinc-900"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">

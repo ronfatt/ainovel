@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getPublicSlugCandidates, normalizePublicSlug } from "@/lib/public-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -15,19 +16,48 @@ type PageProps = {
 export default async function PublicChapterPage({ params }: PageProps) {
   const { slug, chapterNo } = await params;
   const parsedChapterNo = Number(chapterNo);
+  const normalizedSlug = normalizePublicSlug(slug);
 
   if (!Number.isInteger(parsedChapterNo) || parsedChapterNo < 1) {
     notFound();
   }
 
+  const publicProjects = await prisma.project.findMany({
+    where: {
+      isPublic: true,
+      chapters: {
+        some: {
+          isPublished: true,
+        },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      publicTitle: true,
+      publicSlug: true,
+    },
+  });
+
+  const matchedProject =
+    publicProjects.find((project) =>
+      getPublicSlugCandidates({
+        projectId: project.id,
+        title: project.title,
+        publicTitle: project.publicTitle,
+        publicSlug: project.publicSlug,
+      }).includes(normalizedSlug),
+    ) ?? null;
+
+  if (!matchedProject) {
+    notFound();
+  }
+
   const chapter = await prisma.chapter.findFirst({
     where: {
+      projectId: matchedProject.id,
       chapterNo: parsedChapterNo,
       isPublished: true,
-      project: {
-        isPublic: true,
-        OR: [{ publicSlug: slug }, { id: slug }],
-      },
     },
     select: {
       projectId: true,
@@ -39,6 +69,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
       publicViewCount: true,
       project: {
         select: {
+          publicSlug: true,
           publicTitle: true,
           title: true,
         },
@@ -66,6 +97,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
 
   const novelTitle = chapter.project.publicTitle ?? chapter.project.title;
   const chapterTitle = chapter.publishedTitle ?? chapter.title;
+  const canonicalSlug = chapter.project.publicSlug ?? matchedProject.publicSlug ?? normalizedSlug;
   const [previousChapter, nextChapter] = await Promise.all([
     prisma.chapter.findFirst({
       where: {
@@ -110,7 +142,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
             </div>
             <div className="flex gap-3">
               <Link
-                href={`/novels/${slug}`}
+                href={`/novels/${canonicalSlug}`}
                 className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
               >
                 返回目录
@@ -143,7 +175,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
           <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-5">
             {previousChapter ? (
               <Link
-                href={`/novels/${slug}/chapters/${previousChapter.chapterNo}`}
+                href={`/novels/${canonicalSlug}/chapters/${previousChapter.chapterNo}`}
                 className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
               >
                 上一章 · 第 {previousChapter.chapterNo} 章
@@ -155,7 +187,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
             )}
 
             <Link
-              href={`/novels/${slug}`}
+              href={`/novels/${canonicalSlug}`}
               className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
             >
               返回章节目录
@@ -163,7 +195,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
 
             {nextChapter ? (
               <Link
-                href={`/novels/${slug}/chapters/${nextChapter.chapterNo}`}
+                href={`/novels/${canonicalSlug}/chapters/${nextChapter.chapterNo}`}
                 className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
               >
                 下一章 · 第 {nextChapter.chapterNo} 章
