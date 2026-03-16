@@ -1,8 +1,8 @@
+import { toFile } from "openai";
 import {
   getOpenAIClient,
   getOpenAIImageModel,
 } from "@/lib/openai";
-import type { ResponseInputMessageContentList } from "openai/resources/responses/responses";
 
 type GenerateImageInput = {
   prompt: string;
@@ -17,6 +17,19 @@ type GeneratedImage = {
   model: string;
 };
 
+function parseDataUrl(dataUrl: string) {
+  const match = dataUrl.match(/^data:(.+?);base64,(.+)$/);
+
+  if (!match) {
+    throw new Error("Reference image is not a valid data URL.");
+  }
+
+  return {
+    mimeType: match[1] || "image/png",
+    buffer: Buffer.from(match[2], "base64"),
+  };
+}
+
 export async function generateImage({
   prompt,
   referenceImageData,
@@ -26,54 +39,40 @@ export async function generateImage({
   const client = getOpenAIClient();
   const model = getOpenAIImageModel();
 
-  const content: ResponseInputMessageContentList = [{ type: "input_text", text: prompt }];
+  const response = referenceImageData
+    ? await (async () => {
+        const { buffer, mimeType } = parseDataUrl(referenceImageData);
+        const extension = mimeType.split("/")[1] || "png";
+        const file = await toFile(buffer, `reference.${extension}`, {
+          type: mimeType,
+        });
 
-  if (referenceImageData) {
-    content.push({
-      type: "input_image",
-      image_url: referenceImageData,
-      detail: "high",
-    });
-  }
-
-  const response = await client.responses.create({
-    model: "gpt-4.1",
-    input: [
-      {
-        type: "message",
-        role: "user",
-        content,
-      },
-    ],
-    tools: [
-      {
-        type: "image_generation",
+        return client.images.edit({
+          model,
+          image: file,
+          prompt,
+          size,
+          quality,
+          output_format: "png",
+          input_fidelity: "high",
+        });
+      })()
+    : await client.images.generate({
         model,
+        prompt,
         size,
         quality,
         output_format: "png",
-        input_fidelity: referenceImageData ? "high" : "low",
-      },
-    ],
-    tool_choice: {
-      type: "image_generation",
-    },
-  });
+      });
 
-  const imageCall = response.output.find((item) => {
-    if (item.type !== "image_generation_call") {
-      return false;
-    }
+  const imageBase64 = response.data?.[0]?.b64_json;
 
-    return item.status === "completed" && Boolean(item.result);
-  }) as { result: string | null } | undefined;
-
-  if (!imageCall?.result) {
+  if (!imageBase64) {
     throw new Error("Image generation returned no image data.");
   }
 
   return {
-    imageData: `data:image/png;base64,${imageCall.result}`,
+    imageData: `data:image/png;base64,${imageBase64}`,
     mimeType: "image/png",
     model,
   };
