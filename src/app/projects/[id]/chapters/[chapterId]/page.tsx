@@ -578,18 +578,34 @@ export default function ChapterWriterPage({
       const response = await fetch(`/api/ai/chapters/${chapterId}/next`, {
         method: "POST",
       });
-      const data = (await response.json()) as {
+      const raw = await response.text();
+      const data = (() => {
+        try {
+          return JSON.parse(raw) as {
+            message?: string;
+            nextChapter?: { id: string; chapterNo: number; title: string };
+            model?: string;
+          };
+        } catch {
+          throw new Error(
+            raw.startsWith("Request")
+              ? `生成下一章请求失败：${raw}`
+              : "生成下一章时服务器返回了非 JSON 错误。",
+          );
+        }
+      })();
+      const typedData = data as {
         message?: string;
         nextChapter?: { id: string; chapterNo: number; title: string };
         model?: string;
       };
 
-      if (!response.ok || !data.nextChapter) {
-        throw new Error(data.message ?? "AI 生成下一章失败。");
+      if (!response.ok || !typedData.nextChapter) {
+        throw new Error(typedData.message ?? "AI 生成下一章失败。");
       }
 
       setSuccess(
-        `AI 已生成第 ${data.nextChapter.chapterNo} 章《${data.nextChapter.title}》，当前模型：${data.model ?? "未返回"}`,
+        `AI 已生成第 ${typedData.nextChapter.chapterNo} 章《${typedData.nextChapter.title}》，当前模型：${typedData.model ?? "未返回"}`,
       );
     } catch (generationError) {
       setError(

@@ -111,6 +111,9 @@ export async function POST(_: Request, context: RouteContext) {
     const client = getOpenAIClient();
     const response = await client.responses.create({
       model: getOpenAIModel(),
+      reasoning: {
+        effort: "low",
+      },
       instructions:
         "你是一个擅长中文爽文连载节奏规划的小说编辑。请根据当前章节、最近几章和全书设定，生成下一章的目录项。输出必须是简体中文，不要解释，不要输出额外文字，只输出符合 schema 的 JSON。",
       input: [
@@ -128,11 +131,11 @@ export async function POST(_: Request, context: RouteContext) {
         `当前章节摘要：${chapter.summary}`,
         `当前章节爽点：${chapter.corePayoff ?? ""}`,
         `当前章节结尾钩子：${chapter.endingHook ?? ""}`,
-        `当前章节正文结尾状态：${currentDraft?.content.slice(-360) ?? ""}`,
+        `当前章节正文结尾状态：${currentDraft?.content.slice(-220) ?? ""}`,
         `最近章节参考：${JSON.stringify(recentChapters)}`,
         `请生成第 ${chapter.chapterNo + 1} 章的目录项。`,
       ].join("\n"),
-      max_output_tokens: 1400,
+      max_output_tokens: 2200,
       text: {
         format: {
           type: "json_schema",
@@ -143,11 +146,38 @@ export async function POST(_: Request, context: RouteContext) {
       },
     });
 
-    if (!response.output_text) {
-      throw new Error("Model returned an empty next chapter response.");
+    if (response.incomplete_details?.reason === "max_output_tokens") {
+      return NextResponse.json(
+        {
+          message: "AI 生成下一章目录时输出被截断了。请重试一次。",
+        },
+        { status: 502 },
+      );
     }
 
-    const draft = JSON.parse(response.output_text) as NextChapterDraft;
+    if (!response.output_text) {
+      return NextResponse.json(
+        {
+          message: "AI 没有返回可用的下一章目录内容。请重试一次。",
+        },
+        { status: 502 },
+      );
+    }
+
+    let draft: NextChapterDraft;
+
+    try {
+      draft = JSON.parse(response.output_text) as NextChapterDraft;
+    } catch (parseError) {
+      console.error("Failed to parse next chapter response", parseError);
+
+      return NextResponse.json(
+        {
+          message: "AI 返回的下一章目录格式不完整，请重试一次。",
+        },
+        { status: 502 },
+      );
+    }
     const nextChapter = await prisma.chapter.create({
       data: {
         projectId: chapter.projectId,
@@ -172,8 +202,7 @@ export async function POST(_: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        message:
-          "AI 生成下一章失败。请确认 OPENAI_API_KEY 已经配置，并检查数据库连接是否正常。",
+        message: "AI 生成下一章失败，请稍后重试。",
       },
       { status: 500 },
     );
