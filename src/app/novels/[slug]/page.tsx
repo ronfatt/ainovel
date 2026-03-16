@@ -5,6 +5,19 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+function formatPublishedAt(value: Date | null) {
+  if (!value) {
+    return "刚刚更新";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+}
+
 type PageProps = {
   params: Promise<{
     slug: string;
@@ -47,6 +60,7 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
   }
 
   const title = project.publicTitle ?? project.title;
+  const latestChapter = project.chapters.at(-1) ?? null;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#fff7ed_0%,_#fffdf5_24%,_#f8fafc_100%)] px-6 py-10 text-zinc-950">
@@ -72,6 +86,17 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
             <div>
               <p className="text-sm uppercase tracking-[0.22em] text-amber-700">Public Novel</p>
               <h1 className="mt-3 text-4xl font-semibold tracking-tight">{title}</h1>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                  连载中
+                </span>
+                {latestChapter ? (
+                  <span className="text-sm text-zinc-600">
+                    最新更新：第 {latestChapter.chapterNo} 章 ·{" "}
+                    {formatPublishedAt(latestChapter.publishedAt ?? null)}
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-4 text-sm leading-8 text-zinc-600">
                 {project.publicIntro ?? "这本书还没有公开简介。"}
               </p>
@@ -93,12 +118,19 @@ export default async function PublicNovelDetailPage({ params }: PageProps) {
                       href={`/novels/${slug}/chapters/${chapter.chapterNo}`}
                       className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 transition hover:border-zinc-900"
                     >
-                      <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
-                        第 {chapter.chapterNo} 章
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-zinc-900">
-                        {chapter.publishedTitle ?? chapter.title}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
+                            第 {chapter.chapterNo} 章
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-zinc-900">
+                            {chapter.publishedTitle ?? chapter.title}
+                          </p>
+                        </div>
+                        <span className="text-xs text-zinc-500">
+                          {formatPublishedAt(chapter.publishedAt ?? null)}
+                        </span>
+                      </div>
                     </Link>
                   ))}
                 </div>

@@ -4,6 +4,19 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+function formatPublishedAt(value: Date | null) {
+  if (!value) {
+    return "刚刚更新";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+}
+
 export default async function PublicNovelsPage() {
   const projects = await prisma.project.findMany({
     where: {
@@ -51,6 +64,9 @@ export default async function PublicNovelsPage() {
                 const intro = project.publicIntro ?? "这本书还没有公开简介。";
                 const latestChapter = project.chapters[0];
                 const slug = project.publicSlug ?? project.id;
+                const latestUpdateText = latestChapter
+                  ? `更新至第 ${latestChapter.chapterNo} 章 · ${formatPublishedAt(latestChapter.publishedAt ?? null)}`
+                  : "还没有公开章节";
 
                 return (
                   <Link
@@ -74,12 +90,18 @@ export default async function PublicNovelsPage() {
                       )}
                     </div>
                     <div className="mt-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                          连载中
+                        </span>
+                        <span className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                          {latestUpdateText}
+                        </span>
+                      </div>
                       <h2 className="text-2xl font-semibold">{title}</h2>
                       <p className="mt-3 line-clamp-4 text-sm leading-7 text-zinc-600">{intro}</p>
-                      <p className="mt-4 text-xs uppercase tracking-[0.18em] text-amber-700">
-                        {latestChapter
-                          ? `已更新到第 ${latestChapter.chapterNo} 章`
-                          : "还没有公开章节"}
+                      <p className="mt-4 text-sm font-medium text-amber-700">
+                        {latestChapter ? `最新章节：第 ${latestChapter.chapterNo} 章` : "还没有公开章节"}
                       </p>
                     </div>
                   </Link>
