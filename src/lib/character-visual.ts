@@ -43,7 +43,10 @@ export function buildReferenceImagePrompt(character: CharacterPromptSource) {
     character.identityLockNotes
       ? `Identity lock notes: ${character.identityLockNotes}. Keep these fixed across future images.`
       : "Keep the same face, hairstyle, body build, age impression, and signature visual traits across future images.",
-    "Single character only, centered composition, clean studio-like background, waist-up portrait, strong facial clarity, highly detailed web novel cover art.",
+    "Single character only, centered composition, clean studio-like background, waist-up portrait, strong facial clarity, highly detailed web novel character sheet style.",
+    "This is a pure character reference image, not a book cover or poster.",
+    "Do not add any text, letters, logos, title design, subtitles, captions, calligraphy, Chinese characters, Malay words, English words, watermark, signature, or typography of any kind.",
+    "No border frame, no magazine layout, no cover layout, no decorative title area.",
   ]
     .filter(Boolean)
     .join(" ");

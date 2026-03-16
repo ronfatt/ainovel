@@ -355,7 +355,7 @@ export default function CharactersPage({
                 {project ? `${project.title} · 角色形象库` : "角色形象库"}
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-600">
-                先锁定主角的标准样貌，再去单章页手动生成每一章的封面，这样主角脸和气质会稳定很多。
+                先锁定主角的标准样貌，再去单章页手动生成每一章的封面，这样主角脸和气质会稳定很多。角色参考图会尽量保持无字，只用于锁定人物，不当作书封。
               </p>
             </div>
             <div className="flex gap-3">
@@ -593,7 +593,7 @@ export default function CharactersPage({
                         />
                       ) : (
                         <p className="mt-3 text-sm text-zinc-500">
-                          还没有参考图。你可以先上传一张满意的图，或者直接点“AI 生成/强化参考图”。
+                          还没有参考图。你可以先上传一张满意的无字角色图，或者直接点“AI 生成/强化参考图”。
                         </p>
                       )}
                     </div>
