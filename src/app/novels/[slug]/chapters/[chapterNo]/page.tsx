@@ -1,8 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OutputLanguage } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPublicSlugCandidates, normalizePublicSlug } from "@/lib/public-slug";
+import {
+  formatPublicChapterLabel,
+  getPublicReaderCopy,
+} from "@/lib/public-reader-language";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +77,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
           publicSlug: true,
           publicTitle: true,
           title: true,
+          defaultOutputLanguage: true,
         },
       },
     },
@@ -96,6 +102,8 @@ export default async function PublicChapterPage({ params }: PageProps) {
   });
 
   const novelTitle = chapter.project.publicTitle ?? chapter.project.title;
+  const language = chapter.project.defaultOutputLanguage ?? OutputLanguage.ZH_CN;
+  const copy = getPublicReaderCopy(language);
   const chapterTitle = chapter.publishedTitle ?? chapter.title;
   const canonicalSlug = chapter.project.publicSlug ?? matchedProject.publicSlug ?? normalizedSlug;
   const [previousChapter, nextChapter] = await Promise.all([
@@ -136,22 +144,22 @@ export default async function PublicChapterPage({ params }: PageProps) {
             <div>
               <p className="text-sm uppercase tracking-[0.22em] text-amber-700">{novelTitle}</p>
               <h1 className="mt-3 text-4xl font-semibold tracking-tight">
-                第 {chapter.chapterNo} 章 · {chapterTitle}
+                {formatPublicChapterLabel(chapter.chapterNo, language)} · {chapterTitle}
               </h1>
-              <p className="mt-3 text-sm text-zinc-500">阅读量：{displayedViewCount}</p>
+              <p className="mt-3 text-sm text-zinc-500">{copy.readCount}：{displayedViewCount}</p>
             </div>
             <div className="flex gap-3">
               <Link
                 href={`/novels/${canonicalSlug}`}
                 className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
               >
-                返回目录
+                {copy.backToDirectory}
               </Link>
               <Link
                 href="/novels"
                 className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
               >
-                返回书库
+                {copy.backToLibrary}
               </Link>
             </div>
           </div>
@@ -178,11 +186,11 @@ export default async function PublicChapterPage({ params }: PageProps) {
                 href={`/novels/${canonicalSlug}/chapters/${previousChapter.chapterNo}`}
                 className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
               >
-                上一章 · 第 {previousChapter.chapterNo} 章
+                {copy.previousChapter} · {formatPublicChapterLabel(previousChapter.chapterNo, language)}
               </Link>
             ) : (
               <span className="rounded-full border border-dashed border-zinc-300 px-5 py-3 text-sm text-zinc-400">
-                已经是第一章
+                {copy.alreadyFirst}
               </span>
             )}
 
@@ -190,7 +198,7 @@ export default async function PublicChapterPage({ params }: PageProps) {
               href={`/novels/${canonicalSlug}`}
               className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950"
             >
-              返回章节目录
+              {copy.backToDirectory}
             </Link>
 
             {nextChapter ? (
@@ -198,11 +206,11 @@ export default async function PublicChapterPage({ params }: PageProps) {
                 href={`/novels/${canonicalSlug}/chapters/${nextChapter.chapterNo}`}
                 className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
               >
-                下一章 · 第 {nextChapter.chapterNo} 章
+                {copy.nextChapter} · {formatPublicChapterLabel(nextChapter.chapterNo, language)}
               </Link>
             ) : (
               <span className="rounded-full border border-dashed border-zinc-300 px-5 py-3 text-sm text-zinc-400">
-                已经是最新章
+                {copy.alreadyLatest}
               </span>
             )}
           </div>

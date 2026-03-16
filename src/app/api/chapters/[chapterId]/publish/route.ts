@@ -104,11 +104,12 @@ export async function POST(request: Request, context: RouteContext) {
             effort: "low",
           },
           instructions:
-            "You localize Chinese web novel metadata into natural Malay for public readers. Keep proper nouns and cultivation/system terms recognizable, but write fluent Malay. Output only valid JSON.",
+            "You localize serialized web novel metadata into natural Malay for public readers. If the chapter content is already in Malay, align the public title and synopsis with that Malay style. Avoid Chinese guillemets like 《》 and avoid Chinese chapter numbering in the final output. Keep proper nouns recognizable, but write fluent Malay. Output only valid JSON.",
           input: [
             `Novel title: ${chapter.project.title}`,
             `Chapter title: ${chapter.title}`,
             `Chinese novel intro: ${storySynopsis}`,
+            `Published chapter content excerpt: ${content.slice(0, 1600)}`,
             "Return a Malay public novel title, a Malay chapter title, and a 2-3 sentence Malay public intro.",
           ].join("\n"),
           text: {
@@ -147,6 +148,9 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
+    publicTitle = publicTitle.replace(/[《》]/g, "").trim();
+    publishedTitle = publishedTitle.replace(/[《》]/g, "").trim();
+
     await prisma.$transaction([
       prisma.project.update({
         where: { id: chapter.project.id },
@@ -156,6 +160,7 @@ export async function POST(request: Request, context: RouteContext) {
           publicTitle,
           publicIntro,
           publicCoverData: primaryCoverData ?? undefined,
+          defaultOutputLanguage: outputLanguage,
         },
       }),
       prisma.chapter.update({
