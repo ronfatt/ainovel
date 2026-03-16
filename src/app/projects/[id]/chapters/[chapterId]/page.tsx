@@ -49,6 +49,7 @@ type ChapterCoverItem = {
   moodPrompt: string | null;
   imageData: string;
   modelName: string | null;
+  isPrimary: boolean;
   createdAt: string;
 };
 
@@ -131,6 +132,7 @@ export default function ChapterWriterPage({
   const [generatingBrief, setGeneratingBrief] = useState(false);
   const [generatingNextChapter, setGeneratingNextChapter] = useState(false);
   const [generatingCover, setGeneratingCover] = useState(false);
+  const [settingPrimaryCover, setSettingPrimaryCover] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -274,6 +276,42 @@ export default function ChapterWriterPage({
       );
     } finally {
       setGeneratingCover(false);
+    }
+  }
+
+  async function handleSetPrimaryCover() {
+    if (!chapterId || !selectedCover) {
+      setError("请先选中一张封面。");
+      return;
+    }
+
+    setSettingPrimaryCover(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(
+        `/api/chapters/${chapterId}/covers/${selectedCover.id}/select`,
+        {
+          method: "POST",
+        },
+      );
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "设置正式封面失败。");
+      }
+
+      setSuccess(data.message ?? "已设为本章正式封面。");
+      await loadChapter(chapterId);
+    } catch (selectionError) {
+      setError(
+        selectionError instanceof Error
+          ? selectionError.message
+          : "设置正式封面失败。",
+      );
+    } finally {
+      setSettingPrimaryCover(false);
     }
   }
 
@@ -765,6 +803,11 @@ export default function ChapterWriterPage({
                               <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
                                 <span>封面版本</span>
                                 <span>{cover.modelName ?? "未记录模型"}</span>
+                                {cover.isPrimary ? (
+                                  <span className="rounded-full bg-zinc-950 px-2 py-0.5 text-white">
+                                    正式封面
+                                  </span>
+                                ) : null}
                                 <span>{new Date(cover.createdAt).toLocaleString()}</span>
                               </div>
                             </button>
@@ -778,6 +821,23 @@ export default function ChapterWriterPage({
 
                       {selectedCover ? (
                         <div className="mt-4 rounded-[1.5rem] border border-zinc-200 bg-white p-4">
+                          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-zinc-900">
+                              {selectedCover.isPrimary ? "当前正式封面" : "候选封面预览"}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleSetPrimaryCover}
+                              disabled={selectedCover.isPrimary || settingPrimaryCover}
+                              className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:border-zinc-900 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {selectedCover.isPrimary
+                                ? "已是正式封面"
+                                : settingPrimaryCover
+                                  ? "设置中..."
+                                  : "设为正式封面"}
+                            </button>
+                          </div>
                           <Image
                             src={selectedCover.imageData}
                             alt={`${chapter?.title ?? "章节"} 封面`}

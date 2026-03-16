@@ -219,6 +219,7 @@ model ChapterCover {
   imageData     String
   mimeType      String     @default("image/png")
   modelName     String?
+  isPrimary     Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   chapter       Chapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)

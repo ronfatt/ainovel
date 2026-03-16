@@ -97,6 +97,14 @@ export async function POST(request: Request, context: RouteContext) {
       quality: "high",
     });
 
+    const existingPrimaryCover = await prisma.chapterCover.findFirst({
+      where: {
+        chapterId,
+        isPrimary: true,
+      },
+      select: { id: true },
+    });
+
     const cover = await prisma.chapterCover.create({
       data: {
         chapterId,
@@ -114,6 +122,7 @@ export async function POST(request: Request, context: RouteContext) {
         imageData: generated.imageData,
         mimeType: generated.mimeType,
         modelName: generated.model,
+        isPrimary: !existingPrimaryCover,
       },
     });
 
